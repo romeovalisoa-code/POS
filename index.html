@@ -1234,14 +1234,146 @@
       sessionTimeout: 3600000
     };
 
-    // === UTILITAIRES ===
-    const Utils = {
-      formatNumber: (num) => new Intl.NumberFormat('fr-FR').format(num),
-      formatCurrency: (amount) => `${new Intl.NumberFormat('fr-FR').format(amount)} ${APP_CONFIG.currency}`,
-      formatDate: (date) => new Date(date).toLocaleDateString('fr-FR'),
-      formatDateTime: (date) => new Date(date).toLocaleString('fr-FR'),
-      generateId: (prefix = '') => `${prefix}${Date.now()}${Math.random().toString(36).substr(2, 9)}`,
+    // // === UTILITAIRES ===
+const Utils = {
+  formatNumber: (num) => new Intl.NumberFormat('fr-FR').format(num),
+  formatCurrency: (amount) => `${new Intl.NumberFormat('fr-FR').format(amount)} ${APP_CONFIG.currency}`,
+  formatDate: (date) => new Date(date).toLocaleDateString('fr-FR'),
+  formatDateTime: (date) => new Date(date).toLocaleString('fr-FR'),
+  generateId: (prefix = '') => `${prefix}${Date.now()}${Math.random().toString(36).substr(2, 9)}`,
+  
+  // AJOUTEZ ICI LA FONCTION DE CONVERSION EN LETTRES
+  nombreEnLettres: function(nombre) {
+    // Vérifier si c'est un nombre
+    if (isNaN(nombre) || nombre === null) {
+      return "nombre invalide";
+    }
+    
+    // Séparer partie entière et décimale
+    const parts = nombre.toString().split('.');
+    let entier = parseInt(parts[0]);
+    let decimal = parts[1] ? parseInt(parts[1].padEnd(2, '0').substring(0, 2)) : 0;
+    
+    // Cas spécial pour zéro
+    if (entier === 0 && decimal === 0) {
+      return "zéro";
+    }
+    
+    // Tableaux pour la conversion
+    const unites = ['', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf'];
+    const dizaines = ['', 'dix', 'vingt', 'trente', 'quarante', 'cinquante', 'soixante', 'soixante', 'quatre-vingt', 'quatre-vingt'];
+    const exceptionsDizaines = ['dix', 'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize', 'dix-sept', 'dix-huit', 'dix-neuf'];
+    const centaines = ['', 'cent', 'deux cent', 'trois cent', 'quatre cent', 'cinq cent', 'six cent', 'sept cent', 'huit cent', 'neuf cent'];
+    
+    // Fonction pour convertir les centaines (0-999)
+    function convertirCentaines(n) {
+      if (n === 0) return '';
       
+      let result = '';
+      const cent = Math.floor(n / 100);
+      const reste = n % 100;
+      
+      // Centaines
+      if (cent > 0) {
+        result = centaines[cent];
+        if (reste > 0) {
+          result += ' ';
+        } else if (cent === 1) {
+          result = 'cent';
+        }
+      }
+      
+      // Dizaines et unités (0-99)
+      if (reste > 0) {
+        if (reste < 10) {
+          // Unités simples
+          result += unites[reste];
+        } else if (reste < 20) {
+          // Exceptions de 10 à 19
+          if (cent > 0) result += ' ';
+          result += exceptionsDizaines[reste - 10];
+        } else {
+          // Dizaines (20-99)
+          const diz = Math.floor(reste / 10);
+          const unit = reste % 10;
+          
+          // Cas spéciaux pour 70, 80, 90
+          let dizaineTexte = '';
+          if (diz === 7 || diz === 9) {
+            // 70 = soixante-dix, 90 = quatre-vingt-dix
+            dizaineTexte = diz === 7 ? 'soixante' : 'quatre-vingt';
+            const exception = unit + 10;
+            if (exception === 10) {
+              result += (cent > 0 ? ' ' : '') + dizaineTexte + '-dix';
+            } else if (exception === 11) {
+              result += (cent > 0 ? ' ' : '') + dizaineTexte + '-et-onze';
+            } else {
+              result += (cent > 0 ? ' ' : '') + dizaineTexte + '-' + exceptionsDizaines[exception - 10];
+            }
+          } else {
+            // Autres dizaines
+            dizaineTexte = dizaines[diz];
+            if (unit === 0) {
+              // 20, 30, 40, etc.
+              result += (cent > 0 ? ' ' : '') + dizaineTexte;
+              if (diz === 8) result += 's';
+            } else if (unit === 1 && diz !== 8) {
+              // 21, 31, 41, etc. (sauf 81, 91)
+              result += (cent > 0 ? ' ' : '') + dizaineTexte + '-et-un';
+            } else {
+              // Autres combinaisons
+              result += (cent > 0 ? ' ' : '') + dizaineTexte + '-' + unites[unit];
+            }
+          }
+        }
+      }
+      
+      return result.trim();
+    }
+    
+    let resultat = '';
+    
+    // Conversion des millions
+    if (entier >= 1000000) {
+      const millions = Math.floor(entier / 1000000);
+      if (millions === 1) {
+        resultat = 'un million ';
+      } else {
+        resultat = convertirCentaines(millions) + ' millions ';
+      }
+      entier %= 1000000;
+    }
+    
+    // Conversion des milliers
+    if (entier >= 1000) {
+      const milliers = Math.floor(entier / 1000);
+      if (milliers === 1) {
+        resultat += 'mille ';
+      } else {
+        resultat += convertirCentaines(milliers) + ' mille ';
+      }
+      entier %= 1000;
+    }
+    
+    // Conversion des centaines restantes
+    if (entier > 0) {
+      resultat += convertirCentaines(entier) + ' ';
+    }
+    
+    // Ajouter la partie décimale (centimes)
+    if (decimal > 0) {
+      resultat = resultat.trim() + ' virgule ' + convertirCentaines(decimal);
+    }
+    
+    // Nettoyer et formater
+    resultat = resultat.trim();
+    
+    // Capitaliser la première lettre
+    resultat = resultat.charAt(0).toUpperCase() + resultat.slice(1);
+    
+    return resultat;
+  },
+    // 
       // MODIFICATION : Supprimer getOpexDateTime() et utiliser l'heure actuelle
       
       // Fonction : Vérifier si une OPEX existe déjà aujourd'hui
@@ -4159,10 +4291,11 @@
                 </div>
               </div>
               
-              <div class="total-in-words">
-                Arrêté la présente facture à la somme de:<br>
-                <strong>${sale.total} Ariary</strong>
-              </div>
+         <div class="total-in-words">
+  Arrêtée la présente facture à la somme de :<br>
+  <em><strong>${Utils.nombreEnLettres(sale.total)} ariary</strong></em>
+</div>
+
               
               <div class="footer">
                 <p>${this.dataManager.data.settings.receiptHeader}</p>
