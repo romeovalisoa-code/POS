@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>SHOP MIHARISOA - Système de Gestion de Point de Vente</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
   <style>
     :root {
       --primary: #2c3e50;
@@ -1032,6 +1034,39 @@
       border-radius: 12px;
       box-shadow: 0 2px 10px var(--shadow);
     }
+
+    /* Styles pour les alertes de stock */
+    .low-stock-alert {
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.7; }
+      100% { opacity: 1; }
+    }
+    
+    .stock-alert-indicator {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 5px;
+    }
+    
+    .stock-alert-critical {
+      background-color: var(--danger);
+      animation: blink 1s infinite;
+    }
+    
+    .stock-alert-warning {
+      background-color: var(--warning);
+    }
+    
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
   </style>
   <link href="https://fonts.googleapis.com/css2?family=Libre+Barcode+128&display=swap" rel="stylesheet">
 </head>
@@ -1234,149 +1269,122 @@
       sessionTimeout: 3600000
     };
 
-    // // === UTILITAIRES ===
-const Utils = {
-  formatNumber: (num) => new Intl.NumberFormat('fr-FR').format(num),
-  formatCurrency: (amount) => `${new Intl.NumberFormat('fr-FR').format(amount)} ${APP_CONFIG.currency}`,
-  formatDate: (date) => new Date(date).toLocaleDateString('fr-FR'),
-  formatDateTime: (date) => new Date(date).toLocaleString('fr-FR'),
-  generateId: (prefix = '') => `${prefix}${Date.now()}${Math.random().toString(36).substr(2, 9)}`,
-  
-  // AJOUTEZ ICI LA FONCTION DE CONVERSION EN LETTRES
-  nombreEnLettres: function(nombre) {
-    // Vérifier si c'est un nombre
-    if (isNaN(nombre) || nombre === null) {
-      return "nombre invalide";
-    }
-    
-    // Séparer partie entière et décimale
-    const parts = nombre.toString().split('.');
-    let entier = parseInt(parts[0]);
-    let decimal = parts[1] ? parseInt(parts[1].padEnd(2, '0').substring(0, 2)) : 0;
-    
-    // Cas spécial pour zéro
-    if (entier === 0 && decimal === 0) {
-      return "zéro";
-    }
-    
-    // Tableaux pour la conversion
-    const unites = ['', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf'];
-    const dizaines = ['', 'dix', 'vingt', 'trente', 'quarante', 'cinquante', 'soixante', 'soixante', 'quatre-vingt', 'quatre-vingt'];
-    const exceptionsDizaines = ['dix', 'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize', 'dix-sept', 'dix-huit', 'dix-neuf'];
-    const centaines = ['', 'cent', 'deux cent', 'trois cent', 'quatre cent', 'cinq cent', 'six cent', 'sept cent', 'huit cent', 'neuf cent'];
-    
-    // Fonction pour convertir les centaines (0-999)
-    function convertirCentaines(n) {
-      if (n === 0) return '';
+    // === UTILITAIRES ===
+    const Utils = {
+      formatNumber: (num) => new Intl.NumberFormat('fr-FR').format(num),
+      formatCurrency: (amount) => `${new Intl.NumberFormat('fr-FR').format(amount)} ${APP_CONFIG.currency}`,
+      formatDate: (date) => new Date(date).toLocaleDateString('fr-FR'),
+      formatDateTime: (date) => new Date(date).toLocaleString('fr-FR'),
+      generateId: (prefix = '') => `${prefix}${Date.now()}${Math.random().toString(36).substr(2, 9)}`,
       
-      let result = '';
-      const cent = Math.floor(n / 100);
-      const reste = n % 100;
-      
-      // Centaines
-      if (cent > 0) {
-        result = centaines[cent];
-        if (reste > 0) {
-          result += ' ';
-        } else if (cent === 1) {
-          result = 'cent';
+      nombreEnLettres: function(nombre) {
+        if (isNaN(nombre) || nombre === null) {
+          return "nombre invalide";
         }
-      }
-      
-      // Dizaines et unités (0-99)
-      if (reste > 0) {
-        if (reste < 10) {
-          // Unités simples
-          result += unites[reste];
-        } else if (reste < 20) {
-          // Exceptions de 10 à 19
-          if (cent > 0) result += ' ';
-          result += exceptionsDizaines[reste - 10];
-        } else {
-          // Dizaines (20-99)
-          const diz = Math.floor(reste / 10);
-          const unit = reste % 10;
+        
+        const parts = nombre.toString().split('.');
+        let entier = parseInt(parts[0]);
+        let decimal = parts[1] ? parseInt(parts[1].padEnd(2, '0').substring(0, 2)) : 0;
+        
+        if (entier === 0 && decimal === 0) {
+          return "zéro";
+        }
+        
+        const unites = ['', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf'];
+        const dizaines = ['', 'dix', 'vingt', 'trente', 'quarante', 'cinquante', 'soixante', 'soixante', 'quatre-vingt', 'quatre-vingt'];
+        const exceptionsDizaines = ['dix', 'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize', 'dix-sept', 'dix-huit', 'dix-neuf'];
+        const centaines = ['', 'cent', 'deux cent', 'trois cent', 'quatre cent', 'cinq cent', 'six cent', 'sept cent', 'huit cent', 'neuf cent'];
+        
+        function convertirCentaines(n) {
+          if (n === 0) return '';
           
-          // Cas spéciaux pour 70, 80, 90
-          let dizaineTexte = '';
-          if (diz === 7 || diz === 9) {
-            // 70 = soixante-dix, 90 = quatre-vingt-dix
-            dizaineTexte = diz === 7 ? 'soixante' : 'quatre-vingt';
-            const exception = unit + 10;
-            if (exception === 10) {
-              result += (cent > 0 ? ' ' : '') + dizaineTexte + '-dix';
-            } else if (exception === 11) {
-              result += (cent > 0 ? ' ' : '') + dizaineTexte + '-et-onze';
-            } else {
-              result += (cent > 0 ? ' ' : '') + dizaineTexte + '-' + exceptionsDizaines[exception - 10];
-            }
-          } else {
-            // Autres dizaines
-            dizaineTexte = dizaines[diz];
-            if (unit === 0) {
-              // 20, 30, 40, etc.
-              result += (cent > 0 ? ' ' : '') + dizaineTexte;
-              if (diz === 8) result += 's';
-            } else if (unit === 1 && diz !== 8) {
-              // 21, 31, 41, etc. (sauf 81, 91)
-              result += (cent > 0 ? ' ' : '') + dizaineTexte + '-et-un';
-            } else {
-              // Autres combinaisons
-              result += (cent > 0 ? ' ' : '') + dizaineTexte + '-' + unites[unit];
+          let result = '';
+          const cent = Math.floor(n / 100);
+          const reste = n % 100;
+          
+          if (cent > 0) {
+            result = centaines[cent];
+            if (reste > 0) {
+              result += ' ';
+            } else if (cent === 1) {
+              result = 'cent';
             }
           }
+          
+          if (reste > 0) {
+            if (reste < 10) {
+              result += unites[reste];
+            } else if (reste < 20) {
+              if (cent > 0) result += ' ';
+              result += exceptionsDizaines[reste - 10];
+            } else {
+              const diz = Math.floor(reste / 10);
+              const unit = reste % 10;
+              
+              let dizaineTexte = '';
+              if (diz === 7 || diz === 9) {
+                dizaineTexte = diz === 7 ? 'soixante' : 'quatre-vingt';
+                const exception = unit + 10;
+                if (exception === 10) {
+                  result += (cent > 0 ? ' ' : '') + dizaineTexte + '-dix';
+                } else if (exception === 11) {
+                  result += (cent > 0 ? ' ' : '') + dizaineTexte + '-et-onze';
+                } else {
+                  result += (cent > 0 ? ' ' : '') + dizaineTexte + '-' + exceptionsDizaines[exception - 10];
+                }
+              } else {
+                dizaineTexte = dizaines[diz];
+                if (unit === 0) {
+                  result += (cent > 0 ? ' ' : '') + dizaineTexte;
+                  if (diz === 8) result += 's';
+                } else if (unit === 1 && diz !== 8) {
+                  result += (cent > 0 ? ' ' : '') + dizaineTexte + '-et-un';
+                } else {
+                  result += (cent > 0 ? ' ' : '') + dizaineTexte + '-' + unites[unit];
+                }
+              }
+            }
+          }
+          
+          return result.trim();
         }
-      }
+        
+        let resultat = '';
+        
+        if (entier >= 1000000) {
+          const millions = Math.floor(entier / 1000000);
+          if (millions === 1) {
+            resultat = 'un million ';
+          } else {
+            resultat = convertirCentaines(millions) + ' millions ';
+          }
+          entier %= 1000000;
+        }
+        
+        if (entier >= 1000) {
+          const milliers = Math.floor(entier / 1000);
+          if (milliers === 1) {
+            resultat += 'mille ';
+          } else {
+            resultat += convertirCentaines(milliers) + ' mille ';
+          }
+          entier %= 1000;
+        }
+        
+        if (entier > 0) {
+          resultat += convertirCentaines(entier) + ' ';
+        }
+        
+        if (decimal > 0) {
+          resultat = resultat.trim() + ' virgule ' + convertirCentaines(decimal);
+        }
+        
+        resultat = resultat.trim();
+        resultat = resultat.charAt(0).toUpperCase() + resultat.slice(1);
+        
+        return resultat;
+      },
       
-      return result.trim();
-    }
-    
-    let resultat = '';
-    
-    // Conversion des millions
-    if (entier >= 1000000) {
-      const millions = Math.floor(entier / 1000000);
-      if (millions === 1) {
-        resultat = 'un million ';
-      } else {
-        resultat = convertirCentaines(millions) + ' millions ';
-      }
-      entier %= 1000000;
-    }
-    
-    // Conversion des milliers
-    if (entier >= 1000) {
-      const milliers = Math.floor(entier / 1000);
-      if (milliers === 1) {
-        resultat += 'mille ';
-      } else {
-        resultat += convertirCentaines(milliers) + ' mille ';
-      }
-      entier %= 1000;
-    }
-    
-    // Conversion des centaines restantes
-    if (entier > 0) {
-      resultat += convertirCentaines(entier) + ' ';
-    }
-    
-    // Ajouter la partie décimale (centimes)
-    if (decimal > 0) {
-      resultat = resultat.trim() + ' virgule ' + convertirCentaines(decimal);
-    }
-    
-    // Nettoyer et formater
-    resultat = resultat.trim();
-    
-    // Capitaliser la première lettre
-    resultat = resultat.charAt(0).toUpperCase() + resultat.slice(1);
-    
-    return resultat;
-  },
-    // 
-      // MODIFICATION : Supprimer getOpexDateTime() et utiliser l'heure actuelle
-      
-      // Fonction : Vérifier si une OPEX existe déjà aujourd'hui
       opexExistsToday: (opexList, description, amount) => {
         const today = new Date().toISOString().split('T')[0];
         return opexList.some(opex => 
@@ -1386,7 +1394,6 @@ const Utils = {
         );
       },
       
-      // Fonction : Vérifier si un approvisionnement existe déjà aujourd'hui
       purchaseExistsToday: (purchaseList, supplierName, totalAmount) => {
         const today = new Date().toISOString().split('T')[0];
         return purchaseList.some(purchase => 
@@ -1396,7 +1403,6 @@ const Utils = {
         );
       },
       
-      // Fonction pour générer le numéro de facture au format mmYYYY001
       generateInvoiceNumber: (sales) => {
         const now = new Date();
         const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -1426,6 +1432,29 @@ const Utils = {
         
         const sequence = String(sequenceNumber).padStart(3, '0');
         return `${month}${year}${sequence}`;
+      },
+
+      // Fonction pour vérifier les alertes de stock
+      checkStockAlerts: (products) => {
+        const alerts = [];
+        products.forEach(product => {
+          const minStock = product.minStockThreshold || APP_CONFIG.lowStockThreshold;
+          if (product.stock <= minStock) {
+            alerts.push({
+              productId: product.id,
+              productName: product.name,
+              currentStock: product.stock,
+              minStock: minStock,
+              severity: product.stock === 0 ? 'critical' : 'warning'
+            });
+          }
+        });
+        return alerts;
+      },
+      
+      // Fonction pour nettoyer les noms de fichiers
+      cleanFileName: (name) => {
+        return name.replace(/[^a-zA-Z0-9àáâäãåèéêëìíîïòóôöõøùúûüÿýñçčšžÀÁÂÄÃÅÈÉÊËÌÍÎÏÒÓÔÖÕØÙÚÛÜŸÝÑßÇŒÆČŠŽ∂ð_-\s]/g, '').replace(/\s+/g, '_');
       }
     };
 
@@ -1469,7 +1498,9 @@ const Utils = {
             receiptHeader: 'Merci pour votre achat !',
             receiptFooter: 'Rendez-vous bientôt !',
             barcodeEnabled: true,
-            autoBackup: true
+            autoBackup: true,
+            stockAlertEnabled: true,
+            autoSaveInvoice: true // Nouveau paramètre pour l'enregistrement automatique des factures
           },
           cashRegister: {
             openingBalance: 0,
@@ -1506,6 +1537,16 @@ const Utils = {
 
       migrateData() {
         this.data.version = APP_CONFIG.version;
+        // Assurer que chaque produit a un seuil minimum
+        this.data.products.forEach(product => {
+          if (!product.hasOwnProperty('minStockThreshold')) {
+            product.minStockThreshold = APP_CONFIG.lowStockThreshold;
+          }
+        });
+        // Ajouter le paramètre d'enregistrement automatique des factures
+        if (!this.data.settings.hasOwnProperty('autoSaveInvoice')) {
+          this.data.settings.autoSaveInvoice = true;
+        }
         this.save();
       }
 
@@ -1631,6 +1672,13 @@ const Utils = {
             if (!dataToImport.cashRegister) dataToImport.cashRegister = this.data.cashRegister;
             if (!dataToImport.opex) dataToImport.opex = [];
             
+            // S'assurer que chaque produit a un seuil minimum
+            dataToImport.products.forEach(product => {
+              if (!product.hasOwnProperty('minStockThreshold')) {
+                product.minStockThreshold = APP_CONFIG.lowStockThreshold;
+              }
+            });
+            
             if (confirm(`Êtes-vous sûr de vouloir importer ce backup ?\n\nProduits: ${dataToImport.products.length}\nClients: ${dataToImport.customers.length}\nVentes: ${dataToImport.sales ? dataToImport.sales.length : 0}\n\nLes données actuelles seront remplacées.`)) {
               this.data = dataToImport;
               this.data.version = APP_CONFIG.version;
@@ -1685,6 +1733,186 @@ const Utils = {
           }
         }, 5000);
       }
+
+      // Fonction pour afficher les alertes de stock
+      showStockAlerts() {
+        if (!this.data.settings.stockAlertEnabled) return;
+        
+        const alerts = Utils.checkStockAlerts(this.data.products);
+        if (alerts.length === 0) return;
+        
+        // Afficher une notification globale
+        const criticalAlerts = alerts.filter(a => a.severity === 'critical');
+        const warningAlerts = alerts.filter(a => a.severity === 'warning');
+        
+        let alertMessage = '';
+        if (criticalAlerts.length > 0) {
+          alertMessage += `<strong>Stock épuisé (${criticalAlerts.length})</strong><br>`;
+          criticalAlerts.slice(0, 3).forEach(alert => {
+            alertMessage += `• ${alert.productName}: ${alert.currentStock} unités<br>`;
+          });
+          if (criticalAlerts.length > 3) {
+            alertMessage += `... et ${criticalAlerts.length - 3} autres produits<br>`;
+          }
+        }
+        
+        if (warningAlerts.length > 0) {
+          if (criticalAlerts.length > 0) alertMessage += '<br>';
+          alertMessage += `<strong>Stock faible (${warningAlerts.length})</strong><br>`;
+          warningAlerts.slice(0, 3).forEach(alert => {
+            alertMessage += `• ${alert.productName}: ${alert.currentStock} unités (min: ${alert.minStock})<br>`;
+          });
+          if (warningAlerts.length > 3) {
+            alertMessage += `... et ${warningAlerts.length - 3} autres produits<br>`;
+          }
+        }
+        
+        if (alertMessage) {
+          this.showNotification(alertMessage, 'danger');
+        }
+      }
+      
+      // Fonction pour enregistrer automatiquement la facture en PDF
+      async saveInvoiceToPDF(sale) {
+        if (!this.data.settings.autoSaveInvoice) return;
+        
+        try {
+          // Créer un élément temporaire pour le PDF
+          const tempDiv = document.createElement('div');
+          tempDiv.style.position = 'absolute';
+          tempDiv.style.left = '-9999px';
+          tempDiv.style.top = '0';
+          tempDiv.style.width = '400px';
+          tempDiv.style.padding = '20px';
+          tempDiv.style.backgroundColor = 'white';
+          tempDiv.style.fontFamily = "'Courier New', monospace";
+          tempDiv.style.fontSize = '12px';
+          
+          const customerName = sale.customerName || 'Client invité';
+          const cleanCustomerName = Utils.cleanFileName(customerName);
+          const fileName = `${cleanCustomerName}_${sale.invoiceNumber || sale.id}`;
+          
+          const taxRate = parseFloat(this.data.settings.taxRate) || 0;
+          const showTax = taxRate > 0;
+          
+          // Construire le contenu HTML de la facture
+          let invoiceHTML = `
+            <div style="text-align: center; margin-bottom: 15px;">
+              <h2 style="margin: 0; font-size: 16px; font-weight: bold;">${this.data.company.name}</h2>
+              <div style="margin: 3px 0; font-size: 11px;">
+                <p>${this.data.company.address || ''}</p>
+                <p>Tél: ${this.data.company.phone || ''}</p>
+                <p>${new Date(sale.date).toLocaleString('fr-FR')}</p>
+              </div>
+              <div style="font-size: 10px; margin-bottom: 10px;">
+                <p><strong>${this.data.company.taxId || 'NIF Non spécifié'}</strong></p>
+                <p><strong>${this.data.company.statId || 'STAT Non spécifié'}</strong></p>
+              </div>
+              <div style="font-family: 'Libre Barcode 128', cursive; font-size: 40px; text-align: center; margin: 20px 0; letter-spacing: 3px;">
+                ${sale.invoiceNumber || sale.id.replace(/_/g, '')}
+              </div>
+              <p><strong>Facture N°: ${sale.invoiceNumber || sale.id}</strong></p>
+              <p>Client: ${sale.customerName}</p>
+            </div>
+            
+            <div style="margin: 15px 0;">
+              ${sale.items.map(item => `
+                <div style="margin-bottom: 8px; font-size: 11px; border-bottom: 1px dotted #ccc; padding-bottom: 5px;">
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+                    <div style="flex: 3; text-align: left; font-weight: bold;">${item.name}</div>
+                    <div style="flex: 2; text-align: right; font-size: 10px;">
+                      ${item.quantity} x ${Utils.formatCurrency(item.price)}
+                    </div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+            
+            <div style="border-top: 2px dashed #000; padding-top: 10px; margin-top: 10px; font-size: 12px;">
+              ${showTax ? `
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                  <span>Sous-total:</span>
+                  <span>${Utils.formatCurrency(sale.subtotal)}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                  <span>TVA:</span>
+                  <span>${Utils.formatCurrency(sale.tax)}</span>
+                </div>
+              ` : `
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                  <span>Total HT:</span>
+                  <span>${Utils.formatCurrency(sale.subtotal)}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                  <span>TVA:</span>
+                  <span>0 Ar</span>
+                </div>
+              `}
+              <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 14px;">
+                <span>TOTAL TTC:</span>
+                <span>${Utils.formatCurrency(sale.total)}</span>
+              </div>
+            </div>
+            
+            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #000; font-style: italic; font-size: 11px; text-align: center;">
+              Arrêtée la présente facture à la somme de :<br>
+              <em><strong>${Utils.nombreEnLettres(sale.total)} ariary</strong></em>
+            </div>
+            
+            <div style="text-align: center; margin-top: 20px; font-size: 11px;">
+              <p>${this.data.settings.receiptHeader}</p>
+              <p>Méthode: ${sale.paymentMethod === 'cash' ? 'Espèces' : sale.paymentMethod === 'card' ? 'Carte' : 'Chèque'}</p>
+              <p>${this.data.settings.receiptFooter}</p>
+            </div>
+          `;
+          
+          tempDiv.innerHTML = invoiceHTML;
+          document.body.appendChild(tempDiv);
+          
+          // Convertir en PDF
+          const { jsPDF } = window.jspdf;
+          const pdf = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: 'a4'
+          });
+          
+          await html2canvas(tempDiv, {
+            scale: 2,
+            useCORS: true,
+            logging: false
+          }).then(canvas => {
+            const imgData = canvas.toDataURL('image/png');
+            const imgWidth = 190;
+            const pageHeight = pdf.internal.pageSize.height;
+            const imgHeight = canvas.height * imgWidth / canvas.width;
+            let heightLeft = imgHeight;
+            let position = 10;
+            
+            pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+            
+            while (heightLeft >= 0) {
+              position = heightLeft - imgHeight;
+              pdf.addPage();
+              pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+              heightLeft -= pageHeight;
+            }
+            
+            // Sauvegarder le PDF
+            pdf.save(`${fileName}.pdf`);
+          });
+          
+          // Nettoyer l'élément temporaire
+          document.body.removeChild(tempDiv);
+          
+          this.showNotification(`Facture enregistrée automatiquement: ${fileName}.pdf`, 'success');
+          
+        } catch (error) {
+          console.error('Erreur lors de l\'enregistrement de la facture en PDF:', error);
+          this.showNotification('Erreur lors de l\'enregistrement automatique de la facture', 'danger');
+        }
+      }
     }
 
     // === GESTION D'APPLICATION ===
@@ -1707,6 +1935,8 @@ const Utils = {
         setInterval(() => this.updateDateTime(), 60000);
         setInterval(() => this.autoSave(), 30000);
         setInterval(() => this.checkSession(), 60000);
+        // Vérifier les alertes de stock au démarrage
+        setTimeout(() => this.dataManager.showStockAlerts(), 1000);
       }
 
       checkAuth() {
@@ -1845,6 +2075,8 @@ const Utils = {
 
           this.showMainApp();
           this.dataManager.showNotification(`Bienvenue ${user.name} !`, 'success');
+          // Afficher les alertes de stock après la connexion
+          setTimeout(() => this.dataManager.showStockAlerts(), 500);
         } else {
           this.dataManager.showNotification('Identifiants incorrects', 'danger');
         }
@@ -1948,7 +2180,8 @@ const Utils = {
             this.renderDashboard(content);
         }
       }
- // === STOCK ===
+
+      // === STOCK ===
       renderStock(container) {
         container.innerHTML = `
           <div class="card">
@@ -2006,13 +2239,24 @@ const Utils = {
             <div class="card mt-20">
               <div class="card-header">
                 <h4 class="card-title"><i class="fas fa-boxes"></i> Stock enregistré</h4>
+                <button class="btn btn-warning btn-sm" id="checkStockAlertsBtn">
+                  <i class="fas fa-exclamation-triangle"></i> Vérifier les alertes
+                </button>
               </div>
+              
+              <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> 
+                Les produits avec stock faible sont surlignés en jaune, ceux en rupture en rouge.
+                Le seuil minimum peut être défini individuellement pour chaque produit.
+              </div>
+              
               <div class="table-responsive">
                 <table class="table">
                   <thead>
                     <tr>
                       <th>Produit</th>
                       <th>Stock actuel</th>
+                      <th>Seuil minimum</th>
                       <th>Valeur unitaire</th>
                       <th>Valeur totale</th>
                       <th>Dernière mise à jour</th>
@@ -2045,6 +2289,10 @@ const Utils = {
 
         document.getElementById('resetEntry').addEventListener('click', () => {
           this.resetStockEntry();
+        });
+
+        document.getElementById('checkStockAlertsBtn').addEventListener('click', () => {
+          this.dataManager.showStockAlerts();
         });
       }
 
@@ -2101,6 +2349,12 @@ const Utils = {
         this.resetStockEntry();
         
         this.dataManager.showNotification('Entrée de stock enregistrée avec succès', 'success');
+        
+        // Vérifier si l'approvisionnement a résolu une alerte de stock
+        const minStock = product.minStockThreshold || APP_CONFIG.lowStockThreshold;
+        if (product.stock >= minStock && (product.stock - quantity) < minStock) {
+          this.dataManager.showNotification(`Stock de ${product.name} maintenant au-dessus du seuil minimum (${minStock})`, 'success');
+        }
       }
 
       resetStockEntry() {
@@ -2118,7 +2372,7 @@ const Utils = {
         let totalValue = 0;
         
         if (products.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="5" class="text-center">Aucun produit en stock</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="6" class="text-center">Aucun produit en stock</td></tr>';
           document.getElementById('totalStockValue').textContent = '0 Ar';
           return;
         }
@@ -2133,10 +2387,29 @@ const Utils = {
             .filter(m => m.productId === product.id)
             .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
           
+          // Déterminer la classe d'alerte
+          const minStock = product.minStockThreshold || APP_CONFIG.lowStockThreshold;
+          let rowClass = '';
+          let stockIndicator = '';
+          
+          if (product.stock === 0) {
+            rowClass = 'low-stock-alert';
+            stockIndicator = '<span class="stock-alert-indicator stock-alert-critical"></span>';
+          } else if (product.stock <= minStock) {
+            rowClass = 'low-stock-alert';
+            stockIndicator = '<span class="stock-alert-indicator stock-alert-warning"></span>';
+          }
+          
           html += `
-            <tr>
+            <tr class="${rowClass}">
               <td>${product.name}</td>
-              <td><span class="badge ${product.stock <= APP_CONFIG.lowStockThreshold ? 'badge-danger' : 'badge-success'}">${product.stock}</span></td>
+              <td>${stockIndicator}<span class="badge ${product.stock === 0 ? 'badge-danger' : product.stock <= minStock ? 'badge-warning' : 'badge-success'}">${product.stock}</span></td>
+              <td>
+                <input type="number" class="form-control" style="width: 80px; display: inline-block;" 
+                       value="${minStock}" min="0" 
+                       onchange="app.updateMinStockThreshold('${product.id}', this.value)"
+                       data-product-id="${product.id}">
+              </td>
               <td>${Utils.formatCurrency(product.cost || 0)}</td>
               <td>${Utils.formatCurrency(productValue)}</td>
               <td>${lastMovement ? Utils.formatDate(lastMovement.date) : '-'}</td>
@@ -2146,6 +2419,33 @@ const Utils = {
         
         tbody.innerHTML = html;
         document.getElementById('totalStockValue').textContent = Utils.formatCurrency(totalValue);
+      }
+
+      // Fonction pour mettre à jour le seuil minimum de stock
+      updateMinStockThreshold(productId, newThreshold) {
+        const product = this.dataManager.data.products.find(p => p.id === productId);
+        if (!product) return;
+        
+        const threshold = parseInt(newThreshold);
+        if (isNaN(threshold) || threshold < 0) {
+          this.dataManager.showNotification('Veuillez entrer un seuil minimum valide', 'danger');
+          // Restaurer la valeur précédente
+          const input = document.querySelector(`input[data-product-id="${productId}"]`);
+          input.value = product.minStockThreshold || APP_CONFIG.lowStockThreshold;
+          return;
+        }
+        
+        product.minStockThreshold = threshold;
+        this.dataManager.save();
+        
+        // Recharger le tableau pour mettre à jour les couleurs
+        this.loadStockSummary();
+        
+        // Vérifier si le nouveau seuil déclenche une alerte
+        if (product.stock <= threshold) {
+          const severity = product.stock === 0 ? 'critique' : 'avertissement';
+          this.dataManager.showNotification(`Alerte stock ${severity} pour ${product.name}: ${product.stock} unités (seuil: ${threshold})`, 'warning');
+        }
       }
 
       // === INVENTAIRE ===
@@ -2839,7 +3139,6 @@ const Utils = {
         }
       }
 
-
       // === OPEX ===
       renderOPEX(container) {
         container.innerHTML = `
@@ -3015,21 +3314,18 @@ const Utils = {
           return;
         }
         
-        // VÉRIFICATION : S'assurer que l'OPEX n'existe pas déjà aujourd'hui
         if (Utils.opexExistsToday(this.dataManager.data.opex, description, amount)) {
           this.dataManager.showNotification('Cette dépense OPEX a déjà été enregistrée aujourd\'hui', 'danger');
           return;
         }
         
-        // MODIFICATION : Créer une date avec l'heure actuelle
         const now = new Date();
         const selectedDate = new Date(date);
-        // Garder la date sélectionnée mais avec l'heure actuelle
         selectedDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
         
         const opex = {
           id: Utils.generateId('OPEX_'),
-          date: selectedDate.toISOString(), // Date avec heure actuelle
+          date: selectedDate.toISOString(),
           category: category,
           amount: amount,
           description: description,
@@ -3038,16 +3334,11 @@ const Utils = {
           createdAt: new Date().toISOString()
         };
         
-        // Ajouter aux OPEX (ENREGISTREMENT UNIQUE)
         this.dataManager.data.opex.push(opex);
         
-        // Ajouter également aux dépenses générales
-        this.dataManager.data.expenses.push({
-          ...opex,
-          type: 'opex'
-        });
+        // NE PAS ajouter aux dépenses car elles sont déjà comptabilisées dans la caisse
+        // via les transactions de caisse directement
         
-        // Mettre à jour la caisse si paiement en espèces (DÉDUCTION UNIQUE)
         if (payment === 'cash') {
           if (this.dataManager.data.cashRegister.closingBalance < amount) {
             this.dataManager.showNotification('Solde insuffisant en caisse', 'danger');
@@ -3056,10 +3347,9 @@ const Utils = {
           
           this.dataManager.data.cashRegister.closingBalance -= amount;
           
-          // Enregistrer la transaction (UNIQUE)
           this.dataManager.data.cashRegister.transactions.push({
             id: Utils.generateId('TRX_'),
-            date: selectedDate.toISOString(), // Même date avec heure actuelle
+            date: selectedDate.toISOString(),
             type: 'expense',
             amount: -amount,
             description: `OPEX: ${category} - ${description}`,
@@ -3069,11 +3359,9 @@ const Utils = {
         
         this.dataManager.save();
         
-        // Réinitialiser le formulaire
         document.getElementById('opexAmount').value = '';
         document.getElementById('opexDescription').value = '';
         
-        // Mettre à jour l'affichage
         this.loadOPEXHistory();
         this.updateOPEXStats();
         this.updateStats();
@@ -3142,18 +3430,11 @@ const Utils = {
           if (index !== -1) {
             const opex = this.dataManager.data.opex[index];
             
-            // Si c'était un paiement en espèces, rembourser la caisse
             if (opex.paymentMethod === 'cash') {
               this.dataManager.data.cashRegister.closingBalance += opex.amount;
             }
             
             this.dataManager.data.opex.splice(index, 1);
-            
-            // Supprimer aussi des dépenses générales
-            const expIndex = this.dataManager.data.expenses.findIndex(e => e.id === opexId);
-            if (expIndex !== -1) {
-              this.dataManager.data.expenses.splice(expIndex, 1);
-            }
             
             this.dataManager.save();
             this.loadOPEXHistory();
@@ -3174,7 +3455,6 @@ const Utils = {
           return;
         }
         
-        // Calculer par catégorie
         const categoryTotals = {};
         let grandTotal = 0;
         
@@ -3183,7 +3463,6 @@ const Utils = {
           grandTotal += op.amount;
         });
         
-        // Trier les catégories par montant décroissant
         const sortedCategories = Object.entries(categoryTotals)
           .sort((a, b) => b[1] - a[1]);
         
@@ -3272,7 +3551,65 @@ const Utils = {
                 </div>
               </div>
             </div>
-            
+                            <!-- HISTORIQUE DES APPROVISIONNEMENTS AVEC FILTRAGE DATE -->
+        <div class="card mt-20">
+          <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-history"></i> Historique des approvisionnements</h3>
+          </div>
+          
+          <!-- FILTRAGE PAR DATE -->
+          <div class="date-filter" style="margin: 20px 0;">
+            <div class="form-group">
+              <label class="form-label">Date début</label>
+              <input type="date" id="approvisionnementStartDate" class="form-control" value="${new Date().toISOString().split('T')[0]}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Date fin</label>
+              <input type="date" id="approvisionnementEndDate" class="form-control" value="${new Date().toISOString().split('T')[0]}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Fournisseur</label>
+              <select id="approvisionnementFilterSupplier" class="form-control">
+                <option value="">Tous les fournisseurs</option>
+                ${this.dataManager.data.suppliers.map(s => `
+                  <option value="${s.id}">${s.name}</option>
+                `).join('')}
+              </select>
+            </div>
+            <div class="d-flex gap-10">
+              <button class="btn btn-primary" id="applyApprovisionnementFilter">
+                <i class="fas fa-filter"></i> Filtrer
+              </button>
+              <button class="btn btn-outline" id="resetApprovisionnementFilter">
+                <i class="fas fa-redo"></i> Réinitialiser
+              </button>
+            </div>
+          </div>
+          
+          <div class="table-responsive">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Fournisseur</th>
+                  <th>Produits</th>
+                  <th>Quantité totale</th>
+                  <th>Montant total</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="approvisionnementHistory">
+                <!-- Rempli dynamiquement -->
+              </tbody>
+            </table>
+          </div>
+          
+          <div class="text-right mt-10">
+            <strong>Total filtré: </strong>
+            <span id="approvisionnementHistoryTotal" style="color: var(--success); font-size: 1.2rem;">0 Ar</span>
+          </div>
+        </div>
+      </div>
             <div class="approvisionnement-right">
               <div class="card">
                 <div class="card-header">
@@ -3314,18 +3651,163 @@ const Utils = {
 
         this.setupApprovisionnementEventListeners();
         this.updateApprovisionnementDisplay();
+		this.loadApprovisionnementHistory();
       }
 
       setupApprovisionnementEventListeners() {
-        document.getElementById('approvisionnementSearch').addEventListener('input', (e) => {
-          this.searchApprovisionnementProducts(e.target.value);
-        });
+  document.getElementById('approvisionnementSearch').addEventListener('input', (e) => {
+    this.searchApprovisionnementProducts(e.target.value);
+  });
 
-        document.getElementById('approvisionnerBtn').addEventListener('click', () => {
-          this.processApprovisionnement();
-        });
-      }
+  document.getElementById('approvisionnerBtn').addEventListener('click', () => {
+    this.processApprovisionnement();
+  });
 
+  // Ajouter les écouteurs pour le filtrage
+  document.getElementById('applyApprovisionnementFilter').addEventListener('click', () => {
+    this.loadApprovisionnementHistory();
+  });
+
+  document.getElementById('resetApprovisionnementFilter').addEventListener('click', () => {
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('approvisionnementStartDate').value = today;
+    document.getElementById('approvisionnementEndDate').value = today;
+    document.getElementById('approvisionnementFilterSupplier').value = '';
+    this.loadApprovisionnementHistory();
+  });
+}
+// Fonction pour charger l'historique des approvisionnements
+// Fonction pour charger l'historique des approvisionnements avec filtrage
+loadApprovisionnementHistory() {
+  const tbody = document.getElementById('approvisionnementHistory');
+  const purchases = this.dataManager.data.purchases;
+  
+  // Récupérer les valeurs de filtrage
+  const startDate = document.getElementById('approvisionnementStartDate').value;
+  const endDate = document.getElementById('approvisionnementEndDate').value;
+  const filterSupplier = document.getElementById('approvisionnementFilterSupplier').value;
+  
+  let filteredPurchases = purchases;
+  
+  // Appliquer le filtre par date
+  if (startDate && endDate) {
+    filteredPurchases = purchases.filter(purchase => {
+      const purchaseDate = purchase.date.split('T')[0];
+      return purchaseDate >= startDate && purchaseDate <= endDate;
+    });
+  }
+  
+  // Appliquer le filtre par fournisseur
+  if (filterSupplier) {
+    filteredPurchases = filteredPurchases.filter(purchase => 
+      purchase.supplierId === filterSupplier
+    );
+  }
+  
+  if (filteredPurchases.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" class="text-center text-muted">
+          <i class="fas fa-box fa-2x mb-10"></i>
+          <p>Aucun approvisionnement trouvé pour les critères sélectionnés</p>
+        </td>
+      </tr>
+    `;
+    document.getElementById('approvisionnementHistoryTotal').textContent = '0 Ar';
+    return;
+  }
+  
+  // Trier par date décroissante
+  const sortedPurchases = filteredPurchases.slice().sort((a, b) => new Date(b.date) - new Date(a.date));
+  
+  let html = '';
+  let totalAmount = 0;
+  
+  sortedPurchases.forEach(purchase => {
+    const totalQuantity = purchase.items.reduce((sum, item) => sum + item.quantity, 0);
+    const productsList = purchase.items.map(item => `${item.name} (${item.quantity})`).join(', ');
+    totalAmount += purchase.total;
+    
+    html += `
+      <tr>
+        <td>${Utils.formatDate(purchase.date)}</td>
+        <td>${purchase.supplierName}</td>
+        <td>
+          <span title="${productsList}">
+            ${productsList.substring(0, 50)}${productsList.length > 50 ? '...' : ''}
+          </span>
+        </td>
+        <td>${totalQuantity}</td>
+        <td>${Utils.formatCurrency(purchase.total)}</td>
+        <td>
+          <button class="btn btn-sm btn-outline" onclick="app.showApprovisionnementDetails('${purchase.id}')">
+            <i class="fas fa-eye"></i> Détails
+          </button>
+        </td>
+      </tr>
+    `;
+  });
+  
+  tbody.innerHTML = html;
+  document.getElementById('approvisionnementHistoryTotal').textContent = Utils.formatCurrency(totalAmount);
+}
+// Fonction pour afficher les détails d'un approvisionnement
+showApprovisionnementDetails(purchaseId) {
+  const purchase = this.dataManager.data.purchases.find(p => p.id === purchaseId);
+  if (!purchase) return;
+  
+  const modal = document.getElementById('genericModal');
+  modal.querySelector('#modalTitle').textContent = `Détails de l'approvisionnement`;
+  
+  let detailsHtml = `
+    <div class="alert alert-info">
+      <strong>Date:</strong> ${Utils.formatDateTime(purchase.date)}<br>
+      <strong>Fournisseur:</strong> ${purchase.supplierName}<br>
+      <strong>Montant total:</strong> ${Utils.formatCurrency(purchase.total)}<br>
+      <strong>Enregistré par:</strong> ${this.getUserName(purchase.userId)}
+    </div>
+    <h4>Produits approvisionnés</h4>
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Produit</th>
+            <th>Quantité</th>
+            <th>Prix unitaire</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+  
+  purchase.items.forEach(item => {
+    detailsHtml += `
+      <tr>
+        <td>${item.name}</td>
+        <td>${item.quantity}</td>
+        <td>${Utils.formatCurrency(item.cost)}</td>
+        <td>${Utils.formatCurrency(item.total)}</td>
+      </tr>
+    `;
+  });
+  
+  detailsHtml += `
+        </tbody>
+      </table>
+    </div>
+    <div class="text-right mt-10">
+      <strong>Total de l'approvisionnement: </strong>
+      <span style="color: var(--success); font-size: 1.2rem;">${Utils.formatCurrency(purchase.total)}</span>
+    </div>
+  `;
+  
+  modal.querySelector('#modalBody').innerHTML = detailsHtml;
+  modal.querySelector('#modalFooter').innerHTML = `
+    <button class="btn btn-primary" id="modalConfirm">Fermer</button>
+  `;
+  
+  modal.classList.add('active');
+}
       searchApprovisionnementProducts(query) {
         const tbody = document.getElementById('approvisionnementItems');
         
@@ -3461,130 +3943,113 @@ const Utils = {
       }
 
       processApprovisionnement() {
-        if (this.approvisionnementCart.length === 0) {
-          this.dataManager.showNotification('Aucun produit à approvisionner', 'warning');
-          return;
-        }
+  if (this.approvisionnementCart.length === 0) {
+    this.dataManager.showNotification('Aucun produit à approvisionner', 'warning');
+    return;
+  }
 
-        const supplierId = document.getElementById('supplierSelect').value;
-        const supplier = this.dataManager.data.suppliers.find(s => s.id === supplierId);
-        const supplierName = supplier ? supplier.name : 'Inconnu';
+  const supplierId = document.getElementById('supplierSelect').value;
+  const supplier = this.dataManager.data.suppliers.find(s => s.id === supplierId);
+  const supplierName = supplier ? supplier.name : 'Inconnu';
 
-        const subtotal = this.approvisionnementCart.reduce((sum, item) => sum + (item.cost * item.quantity), 0);
-        const total = subtotal;
+  const subtotal = this.approvisionnementCart.reduce((sum, item) => sum + (item.cost * item.quantity), 0);
+  const total = subtotal;
 
-        // VÉRIFICATION : S'assurer que l'approvisionnement n'existe pas déjà aujourd'hui
-        if (Utils.purchaseExistsToday(this.dataManager.data.purchases, supplierName, total)) {
-          this.dataManager.showNotification('Cet approvisionnement a déjà été enregistré aujourd\'hui', 'danger');
-          return;
-        }
+  if (Utils.purchaseExistsToday(this.dataManager.data.purchases, supplierName, total)) {
+    this.dataManager.showNotification('Cet approvisionnement a déjà été enregistré aujourd\'hui', 'danger');
+    return;
+  }
 
-        // Vérifier le solde de la caisse
-        if (this.dataManager.data.cashRegister.closingBalance < total) {
-          this.dataManager.showNotification('Solde insuffisant en caisse', 'danger');
-          return;
-        }
+  if (this.dataManager.data.cashRegister.closingBalance < total) {
+    this.dataManager.showNotification('Solde insuffisant en caisse', 'danger');
+    return;
+  }
 
-        // Créer l'achat
-        const purchase = {
-          id: Utils.generateId('PURCH_'),
-          date: new Date().toISOString(),
-          supplierId: supplierId,
-          supplierName: supplierName,
-          items: this.approvisionnementCart.map(item => ({
-            productId: item.id,
-            name: item.name,
-            quantity: item.quantity,
-            cost: item.cost,
-            total: item.cost * item.quantity
-          })),
-          subtotal: subtotal,
-          total: total,
-          userId: this.currentUser.id
-        };
+  const purchase = {
+    id: Utils.generateId('PURCH_'),
+    date: new Date().toISOString(),
+    supplierId: supplierId,
+    supplierName: supplierName,
+    items: this.approvisionnementCart.map(item => ({
+      productId: item.id,
+      name: item.name,
+      quantity: item.quantity,
+      cost: item.cost,
+      total: item.cost * item.quantity
+    })),
+    subtotal: subtotal,
+    total: total,
+    userId: this.currentUser.id
+  };
 
-        // Mettre à jour le stock et enregistrer les prix unitaires
-        for (const item of this.approvisionnementCart) {
-          const product = this.dataManager.data.products.find(p => p.id === item.id);
-          if (product) {
-            product.stock += item.quantity;
-            product.cost = item.cost; // Mettre à jour le coût
-            
-            // Ajouter un mouvement de stock automatique
-            const stockMovement = {
-              id: Utils.generateId('MVT_'),
-              date: new Date().toISOString(),
-              productId: product.id,
-              productName: product.name,
-              type: 'entree',
-              quantity: item.quantity,
-              unitPrice: item.cost,
-              totalValue: item.quantity * item.cost,
-              reason: `Approvisionnement - ${supplierName}`,
-              createdBy: this.currentUser.id,
-              createdAt: new Date().toISOString()
-            };
-            this.dataManager.data.stockMovements.push(stockMovement);
-          }
-        }
+  for (const item of this.approvisionnementCart) {
+    const product = this.dataManager.data.products.find(p => p.id === item.id);
+    if (product) {
+      product.stock += item.quantity;
+      product.cost = item.cost;
+      
+      const stockMovement = {
+        id: Utils.generateId('MVT_'),
+        date: new Date().toISOString(),
+        productId: product.id,
+        productName: product.name,
+        type: 'entree',
+        quantity: item.quantity,
+        unitPrice: item.cost,
+        totalValue: item.quantity * item.cost,
+        reason: `Approvisionnement - ${supplierName}`,
+        createdBy: this.currentUser.id,
+        createdAt: new Date().toISOString()
+      };
+      this.dataManager.data.stockMovements.push(stockMovement);
+    }
+  }
 
-        // Enregistrer l'achat
-        this.dataManager.data.purchases.push(purchase);
-        
-        // Ajouter aux dépenses (ENREGISTREMENT UNIQUE)
-        this.dataManager.data.expenses.push({
-          id: purchase.id,
-          date: new Date().toISOString(),
-          type: 'purchase',
-          category: 'approvisionnement',
-          amount: total,
-          description: `Approvisionnement - ${supplierName}`,
-          paymentMethod: 'cash',
-          userId: this.currentUser.id
-        });
-        
-        // Mettre à jour la caisse (DÉDUCTION UNIQUE)
-        this.dataManager.data.cashRegister.closingBalance -= total;
-        
-        // Enregistrer la transaction (UNIQUE)
-        this.dataManager.data.cashRegister.transactions.push({
-          id: Utils.generateId('TRX_'),
-          date: new Date().toISOString(),
-          type: 'purchase',
-          amount: -total,
-          description: `Approvisionnement - ${supplierName}`,
-          userId: this.currentUser.id
-        });
+  this.dataManager.data.purchases.push(purchase);
+  
+  // NE PAS ajouter aux dépenses car l'approvisionnement est déjà comptabilisé
+  // dans la caisse via la transaction ci-dessous
+  
+  this.dataManager.data.cashRegister.closingBalance -= total;
+  
+  this.dataManager.data.cashRegister.transactions.push({
+    id: Utils.generateId('TRX_'),
+    date: new Date().toISOString(),
+    type: 'purchase',
+    amount: -total,
+    description: `Approvisionnement - ${supplierName}`,
+    userId: this.currentUser.id
+  });
 
-        // Mettre à jour le fournisseur
-        if (supplier) {
-          supplier.lastDelivery = new Date().toISOString();
-        }
+  if (supplier) {
+    supplier.lastDelivery = new Date().toISOString();
+  }
 
-        this.dataManager.save();
-        
-        // Réinitialiser
-        this.approvisionnementCart = [];
-        document.getElementById('approvisionnementSearch').value = '';
-        document.getElementById('supplierSelect').value = '';
-        this.updateApprovisionnementDisplay();
-        
-        const tbody = document.getElementById('approvisionnementItems');
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="5" class="text-center text-muted">
-              <i class="fas fa-check-circle fa-2x mb-10 text-success"></i>
-              <p>Approvisionnement effectué avec succès (enregistrement unique)</p>
-            </td>
-          </tr>
-        `;
-        
-        this.dataManager.showNotification('Approvisionnement enregistré UNE SEULE FOIS avec succès', 'success');
-        this.updateStats();
-        this.loadAllProducts();
-      }
-
-            // === POINT DE VENTE ===
+  this.dataManager.save();
+  
+  this.approvisionnementCart = [];
+  document.getElementById('approvisionnementSearch').value = '';
+  document.getElementById('supplierSelect').value = '';
+  this.updateApprovisionnementDisplay();
+  
+  const tbody = document.getElementById('approvisionnementItems');
+  tbody.innerHTML = `
+    <tr>
+      <td colspan="5" class="text-center text-muted">
+        <i class="fas fa-check-circle fa-2x mb-10 text-success"></i>
+        <p>Approvisionnement effectué avec succès (enregistrement unique)</p>
+      </td>
+    </tr>
+  `;
+  
+  // AJOUTEZ CETTE LIGNE POUR RECHARGER L'HISTORIQUE
+  this.loadApprovisionnementHistory();
+  
+  this.dataManager.showNotification('Approvisionnement enregistré UNE SEULE FOIS avec succès', 'success');
+  this.updateStats();
+  this.loadAllProducts();
+}
+      // === POINT DE VENTE ===
       renderPOS(container) {
         container.innerHTML = `
           <div class="grid grid-3">
@@ -3769,13 +4234,18 @@ const Utils = {
         
         let html = '';
         products.forEach(product => {
-          const stockClass = product.stock <= APP_CONFIG.lowStockThreshold ? 'badge-danger' : 
-                           product.stock <= APP_CONFIG.lowStockThreshold * 2 ? 'badge-warning' : 'badge-success';
+          const minStock = product.minStockThreshold || APP_CONFIG.lowStockThreshold;
+          const stockClass = product.stock === 0 ? 'badge-danger' : 
+                           product.stock <= minStock ? 'badge-warning' : 'badge-success';
           
           html += `
-            <div class="product-card" onclick="app.addToCart(${JSON.stringify(product).replace(/"/g, '&quot;')})">
+            <div class="product-card ${product.stock <= minStock ? 'low-stock-alert' : ''}" onclick="app.addToCart(${JSON.stringify(product).replace(/"/g, '&quot;')})">
               <div class="product-image">
                 <i class="fas fa-box"></i>
+                ${product.stock <= minStock ? 
+                  `<div style="position: absolute; top: 10px; right: 10px; background: ${product.stock === 0 ? 'var(--danger)' : 'var(--warning)'}; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem;">
+                    <i class="fas fa-exclamation-triangle"></i> ${product.stock === 0 ? 'RUPTURE' : 'FAIBLE'}
+                  </div>` : ''}
               </div>
               <div class="product-info">
                 <div class="product-name">${product.name}</div>
@@ -3787,6 +4257,7 @@ const Utils = {
                 </div>
                 <div class="product-stock">
                   Stock: <span class="badge ${stockClass}">${product.stock}</span>
+                  ${product.stock <= minStock ? `<small class="text-muted">(min: ${minStock})</small>` : ''}
                 </div>
                 ${product.category ? `<div class="text-muted" style="font-size: 0.8rem;">${product.category}</div>` : ''}
               </div>
@@ -3813,13 +4284,18 @@ const Utils = {
         
         let html = '';
         filteredProducts.forEach(product => {
-          const stockClass = product.stock <= APP_CONFIG.lowStockThreshold ? 'badge-danger' : 
-                           product.stock <= APP_CONFIG.lowStockThreshold * 2 ? 'badge-warning' : 'badge-success';
+          const minStock = product.minStockThreshold || APP_CONFIG.lowStockThreshold;
+          const stockClass = product.stock === 0 ? 'badge-danger' : 
+                           product.stock <= minStock ? 'badge-warning' : 'badge-success';
           
           html += `
-            <div class="product-card" onclick="app.addToCart(${JSON.stringify(product).replace(/"/g, '&quot;')})">
+            <div class="product-card ${product.stock <= minStock ? 'low-stock-alert' : ''}" onclick="app.addToCart(${JSON.stringify(product).replace(/"/g, '&quot;')})">
               <div class="product-image">
                 <i class="fas fa-box"></i>
+                ${product.stock <= minStock ? 
+                  `<div style="position: absolute; top: 10px; right: 10px; background: ${product.stock === 0 ? 'var(--danger)' : 'var(--warning)'}; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem;">
+                    <i class="fas fa-exclamation-triangle"></i> ${product.stock === 0 ? 'RUPTURE' : 'FAIBLE'}
+                  </div>` : ''}
               </div>
               <div class="product-info">
                 <div class="product-name">${product.name}</div>
@@ -3831,6 +4307,7 @@ const Utils = {
                 </div>
                 <div class="product-stock">
                   Stock: <span class="badge ${stockClass}">${product.stock}</span>
+                  ${product.stock <= minStock ? `<small class="text-muted">(min: ${minStock})</small>` : ''}
                 </div>
                 ${product.category ? `<div class="text-muted" style="font-size: 0.8rem;">${product.category}</div>` : ''}
               </div>
@@ -3868,13 +4345,18 @@ const Utils = {
 
         let html = '';
         filteredProducts.forEach(product => {
-          const stockClass = product.stock <= APP_CONFIG.lowStockThreshold ? 'badge-danger' : 
-                           product.stock <= APP_CONFIG.lowStockThreshold * 2 ? 'badge-warning' : 'badge-success';
+          const minStock = product.minStockThreshold || APP_CONFIG.lowStockThreshold;
+          const stockClass = product.stock === 0 ? 'badge-danger' : 
+                           product.stock <= minStock ? 'badge-warning' : 'badge-success';
           
           html += `
-            <div class="product-card" onclick="app.addToCart(${JSON.stringify(product).replace(/"/g, '&quot;')})">
+            <div class="product-card ${product.stock <= minStock ? 'low-stock-alert' : ''}" onclick="app.addToCart(${JSON.stringify(product).replace(/"/g, '&quot;')})">
               <div class="product-image">
                 <i class="fas fa-box"></i>
+                ${product.stock <= minStock ? 
+                  `<div style="position: absolute; top: 10px; right: 10px; background: ${product.stock === 0 ? 'var(--danger)' : 'var(--warning)'}; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem;">
+                    <i class="fas fa-exclamation-triangle"></i> ${product.stock === 0 ? 'RUPTURE' : 'FAIBLE'}
+                  </div>` : ''}
               </div>
               <div class="product-info">
                 <div class="product-name">${product.name}</div>
@@ -3886,6 +4368,7 @@ const Utils = {
                 </div>
                 <div class="product-stock">
                   Stock: <span class="badge ${stockClass}">${product.stock}</span>
+                  ${product.stock <= minStock ? `<small class="text-muted">(min: ${minStock})</small>` : ''}
                 </div>
                 ${product.category ? `<div class="text-muted" style="font-size: 0.8rem;">${product.category}</div>` : ''}
               </div>
@@ -3925,15 +4408,13 @@ const Utils = {
                 <td>${item.name} ${this.wholesaleMode && item.wholesalePrice ? '<span class="badge badge-info">Gros</span>' : ''}</td>
                 <td>${Utils.formatCurrency(price)}</td>
                 <td>
-                  <div class="pos-quantity-control">
-                    <button class="pos-quantity-btn" onclick="app.updateQuantity(${index}, -1)">
-                      <i class="fas fa-minus"></i>
-                    </button>
-                    <span>${item.quantity}</span>
-                    <button class="pos-quantity-btn" onclick="app.updateQuantity(${index}, 1)">
-                      <i class="fas fa-plus"></i>
-                    </button>
-                  </div>
+                  <input type="number" 
+                         class="form-control" 
+                         style="width: 100px; display: inline-block;"
+                         value="${item.quantity}" 
+                         min="1" 
+                         onchange="app.updateQuantityInput(${index}, this.value)"
+                         onblur="app.validateQuantityInput(${index}, this)">
                 </td>
                 <td>${Utils.formatCurrency(totalItem)}</td>
                 <td>
@@ -3955,6 +4436,12 @@ const Utils = {
         if (product.stock <= 0) {
           this.dataManager.showNotification(`${product.name} est en rupture de stock`, 'danger');
           return;
+        }
+
+        const minStock = product.minStockThreshold || APP_CONFIG.lowStockThreshold;
+        if (product.stock <= minStock) {
+          const alertType = product.stock === 0 ? 'rupture' : 'faible';
+          this.dataManager.showNotification(`Attention: Stock ${alertType} pour ${product.name} (${product.stock} unités, seuil: ${minStock})`, 'warning');
         }
 
         const existingItem = this.cart.find(item => item.id === product.id);
@@ -4000,7 +4487,49 @@ const Utils = {
         this.updateCartDisplay();
       }
 
-      processSale() {
+      updateQuantityInput(index, newValue) {
+        const item = this.cart[index];
+        const product = this.dataManager.data.products.find(p => p.id === item.id);
+        
+        const newQuantity = parseInt(newValue);
+        if (isNaN(newQuantity) || newQuantity < 1) {
+          document.querySelectorAll('#cartItems input[type="number"]')[index].value = 1;
+          item.quantity = 1;
+          this.updateCartDisplay();
+          return;
+        }
+        
+        if (newQuantity > product.stock) {
+          this.dataManager.showNotification(`Stock insuffisant pour ${product.name}. Stock disponible: ${product.stock}`, 'danger');
+          document.querySelectorAll('#cartItems input[type="number"]')[index].value = product.stock;
+          item.quantity = product.stock;
+          this.updateCartDisplay();
+          return;
+        }
+        
+        item.quantity = newQuantity;
+        this.updateCartDisplay();
+      }
+
+      validateQuantityInput(index, inputElement) {
+        const item = this.cart[index];
+        const product = this.dataManager.data.products.find(p => p.id === item.id);
+        
+        const value = parseInt(inputElement.value);
+        if (isNaN(value) || value < 1) {
+          inputElement.value = 1;
+          item.quantity = 1;
+          this.updateCartDisplay();
+          this.dataManager.showNotification(`Quantité ajustée à 1`, 'warning');
+        } else if (value > product.stock) {
+          inputElement.value = product.stock;
+          item.quantity = product.stock;
+          this.updateCartDisplay();
+          this.dataManager.showNotification(`Quantité ajustée au stock disponible: ${product.stock}`, 'warning');
+        }
+      }
+
+      async processSale() {
         if (this.cart.length === 0) {
           this.dataManager.showNotification('Le panier est vide', 'warning');
           return;
@@ -4110,6 +4639,9 @@ const Utils = {
 
         this.dataManager.save();
         
+        // Enregistrer automatiquement la facture en PDF
+        await this.dataManager.saveInvoiceToPDF(sale);
+        
         this.generateReceipt(sale);
         
         this.cart = [];
@@ -4120,6 +4652,9 @@ const Utils = {
         this.dataManager.showNotification(`Vente enregistrée avec succès ! Facture N°: ${invoiceNumber}`, 'success');
         this.updateStats();
         this.loadAllProducts();
+        
+        // Vérifier les alertes de stock après la vente
+        setTimeout(() => this.dataManager.showStockAlerts(), 500);
       }
 
       generateReceipt(sale) {
@@ -4291,11 +4826,10 @@ const Utils = {
                 </div>
               </div>
               
-         <div class="total-in-words">
-  Arrêtée la présente facture à la somme de :<br>
-  <em><strong>${Utils.nombreEnLettres(sale.total)} ariary</strong></em>
-</div>
-
+              <div class="total-in-words">
+                Arrêtée la présente facture à la somme de :<br>
+                <em><strong>${Utils.nombreEnLettres(sale.total)} ariary</strong></em>
+              </div>
               
               <div class="footer">
                 <p>${this.dataManager.data.settings.receiptHeader}</p>
@@ -4326,6 +4860,12 @@ const Utils = {
               </button>
             </div>
             
+            <div class="alert alert-info">
+              <i class="fas fa-info-circle"></i> 
+              La colonne "Seuil min" permet de définir un seuil d'alerte personnalisé pour chaque produit.
+              Les produits avec stock faible sont mis en évidence.
+            </div>
+            
             <div class="form-group">
               <input type="text" id="filterProducts" class="form-control" placeholder="Filtrer les produits...">
             </div>
@@ -4341,6 +4881,8 @@ const Utils = {
                     <th>Prix</th>
                     <th>Coût</th>
                     <th>Marge</th>
+                    <th>Stock</th>
+                    <th>Seuil min</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -4371,9 +4913,12 @@ const Utils = {
         
         tbody.innerHTML = products.map(product => {
           const margin = ((product.price - product.cost) / product.price * 100).toFixed(1);
+          const minStock = product.minStockThreshold || APP_CONFIG.lowStockThreshold;
+          const stockClass = product.stock === 0 ? 'badge-danger' : 
+                           product.stock <= minStock ? 'badge-warning' : 'badge-success';
           
           return `
-            <tr>
+            <tr class="${product.stock <= minStock ? 'low-stock-alert' : ''}">
               <td>${product.barcode || product.id.substring(0, 8)}</td>
               <td><strong>${product.name}</strong></td>
               <td>${product.category || 'Non catégorisé'}</td>
@@ -4381,6 +4926,15 @@ const Utils = {
               <td>${Utils.formatCurrency(product.price)}</td>
               <td>${Utils.formatCurrency(product.cost)}</td>
               <td>${margin}%</td>
+              <td>
+                <span class="badge ${stockClass}">${product.stock}</span>
+              </td>
+              <td>
+                <input type="number" class="form-control" style="width: 80px; display: inline-block;" 
+                       value="${minStock}" min="0" 
+                       onchange="app.updateProductMinStock('${product.id}', this.value)"
+                       data-product-id="${product.id}">
+              </td>
               <td>
                 <div class="d-flex gap-10">
                   <button class="btn btn-sm btn-outline" onclick="app.editProduct('${product.id}')">
@@ -4394,6 +4948,32 @@ const Utils = {
             </tr>
           `;
         }).join('');
+      }
+
+      // Fonction pour mettre à jour le seuil minimum d'un produit depuis la page produits
+      updateProductMinStock(productId, newThreshold) {
+        const product = this.dataManager.data.products.find(p => p.id === productId);
+        if (!product) return;
+        
+        const threshold = parseInt(newThreshold);
+        if (isNaN(threshold) || threshold < 0) {
+          this.dataManager.showNotification('Veuillez entrer un seuil minimum valide', 'danger');
+          const input = document.querySelector(`input[data-product-id="${productId}"]`);
+          input.value = product.minStockThreshold || APP_CONFIG.lowStockThreshold;
+          return;
+        }
+        
+        product.minStockThreshold = threshold;
+        this.dataManager.save();
+        
+        // Recharger le tableau pour mettre à jour les couleurs
+        this.loadProductsTable();
+        
+        // Vérifier si le nouveau seuil déclenche une alerte
+        if (product.stock <= threshold) {
+          const severity = product.stock === 0 ? 'critique' : 'avertissement';
+          this.dataManager.showNotification(`Alerte stock ${severity} pour ${product.name}: ${product.stock} unités (seuil: ${threshold})`, 'warning');
+        }
       }
 
       filterProductsTable(query) {
@@ -4413,9 +4993,12 @@ const Utils = {
         
         tbody.innerHTML = filtered.map(product => {
           const margin = ((product.price - product.cost) / product.price * 100).toFixed(1);
+          const minStock = product.minStockThreshold || APP_CONFIG.lowStockThreshold;
+          const stockClass = product.stock === 0 ? 'badge-danger' : 
+                           product.stock <= minStock ? 'badge-warning' : 'badge-success';
           
           return `
-            <tr>
+            <tr class="${product.stock <= minStock ? 'low-stock-alert' : ''}">
               <td>${product.barcode || product.id.substring(0, 8)}</td>
               <td><strong>${product.name}</strong></td>
               <td>${product.category || 'Non catégorisé'}</td>
@@ -4423,6 +5006,15 @@ const Utils = {
               <td>${Utils.formatCurrency(product.price)}</td>
               <td>${Utils.formatCurrency(product.cost)}</td>
               <td>${margin}%</td>
+              <td>
+                <span class="badge ${stockClass}">${product.stock}</span>
+              </td>
+              <td>
+                <input type="number" class="form-control" style="width: 80px; display: inline-block;" 
+                       value="${minStock}" min="0" 
+                       onchange="app.updateProductMinStock('${product.id}', this.value)"
+                       data-product-id="${product.id}">
+              </td>
               <td>
                 <div class="d-flex gap-10">
                   <button class="btn btn-sm btn-outline" onclick="app.editProduct('${product.id}')">
@@ -4487,6 +5079,16 @@ const Utils = {
             </div>
           </div>
           
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Seuil minimum d'alerte</label>
+              <input type="number" id="productMinStock" class="form-control" 
+                     value="${product ? (product.minStockThreshold || APP_CONFIG.lowStockThreshold) : APP_CONFIG.lowStockThreshold}" 
+                     min="0" placeholder="Seuil d'alerte">
+              <small class="text-muted">Alarme lorsque le stock atteint cette valeur</small>
+            </div>
+          </div>
+          
           <div class="form-group">
             <label class="form-label">Description</label>
             <textarea id="productDescription" class="form-control" rows="3">${product ? product.description || '' : ''}</textarea>
@@ -4520,6 +5122,7 @@ const Utils = {
             price: parseFloat(document.getElementById('productPrice').value),
             cost: parseFloat(document.getElementById('productCost').value) || 0,
             stock: parseInt(document.getElementById('productStock').value),
+            minStockThreshold: parseInt(document.getElementById('productMinStock').value) || APP_CONFIG.lowStockThreshold,
             description: document.getElementById('productDescription').value.trim(),
             supplierId: document.getElementById('productSupplier').value
           };
@@ -4565,12 +5168,12 @@ const Utils = {
         }
       }
 
-      // === DASHBOARD, STOCK, INVENTORY, CUSTOMERS, SUPPLIERS, FILTER, CASH, CASHDETAILS, SETTINGS ===
-      // Ces méthodes doivent également être incluses mais je les ai omises par souci de concision
-      // Elles contiennent le code pour afficher les autres pages de l'application
-
+      // === DASHBOARD ===
       renderDashboard(container) {
         const stats = this.getDashboardStats();
+        const stockAlerts = Utils.checkStockAlerts(this.dataManager.data.products);
+        const criticalAlerts = stockAlerts.filter(a => a.severity === 'critical');
+        const warningAlerts = stockAlerts.filter(a => a.severity === 'warning');
         
         container.innerHTML = `
           <div class="grid grid-4">
@@ -4617,6 +5220,53 @@ const Utils = {
               </div>
             </div>
           </div>
+          
+          ${stockAlerts.length > 0 ? `
+            <div class="card mt-20">
+              <div class="card-header">
+                <h3 class="card-title">
+                  <i class="fas fa-exclamation-triangle"></i> Alertes de stock
+                  <span class="badge ${criticalAlerts.length > 0 ? 'badge-danger' : 'badge-warning'}">
+                    ${stockAlerts.length} alerte${stockAlerts.length > 1 ? 's' : ''}
+                  </span>
+                </h3>
+                <button class="btn btn-warning btn-sm" onclick="app.dataManager.showStockAlerts()">
+                  <i class="fas fa-bell"></i> Voir détails
+                </button>
+              </div>
+              
+              ${criticalAlerts.length > 0 ? `
+                <div class="alert alert-danger">
+                  <i class="fas fa-skull-crossbones"></i>
+                  <strong>${criticalAlerts.length} produit${criticalAlerts.length > 1 ? 's' : ''} en rupture de stock</strong><br>
+                  ${criticalAlerts.slice(0, 3).map(alert => 
+                    `• ${alert.productName}: ${alert.currentStock} unités`
+                  ).join('<br>')}
+                  ${criticalAlerts.length > 3 ? `<br>... et ${criticalAlerts.length - 3} autre${criticalAlerts.length > 4 ? 's' : ''}` : ''}
+                </div>
+              ` : ''}
+              
+              ${warningAlerts.length > 0 ? `
+                <div class="alert alert-warning">
+                  <i class="fas fa-exclamation-triangle"></i>
+                  <strong>${warningAlerts.length} produit${warningAlerts.length > 1 ? 's' : ''} avec stock faible</strong><br>
+                  ${warningAlerts.slice(0, 3).map(alert => 
+                    `• ${alert.productName}: ${alert.currentStock} unités (seuil: ${alert.minStock})`
+                  ).join('<br>')}
+                  ${warningAlerts.length > 3 ? `<br>... et ${warningAlerts.length - 3} autre${warningAlerts.length > 4 ? 's' : ''}` : ''}
+                </div>
+              ` : ''}
+              
+              <div class="text-center">
+                <button class="btn btn-primary" onclick="app.loadPage('stock')">
+                  <i class="fas fa-warehouse"></i> Gérer le stock
+                </button>
+                <button class="btn btn-success" onclick="app.loadPage('approvisionnement')">
+                  <i class="fas fa-shopping-cart"></i> Approvisionner
+                </button>
+              </div>
+            </div>
+          ` : ''}
         `;
       }
 
@@ -4703,6 +5353,13 @@ const Utils = {
                   <input type="number" id="taxRate" class="form-control" value="${this.dataManager.data.settings.taxRate}" min="0" max="100" step="0.1">
                 </div>
               </div>
+              <div class="form-group">
+                <label class="form-label">
+                  <input type="checkbox" id="autoSaveInvoice" ${this.dataManager.data.settings.autoSaveInvoice !== false ? 'checked' : ''}>
+                  Enregistrement automatique des factures en PDF
+                </label>
+                <small class="text-muted">Les factures seront automatiquement enregistrées sous la forme: NomClient_NuméroFacture.pdf</small>
+              </div>
               <button class="btn btn-primary w-100" id="saveSettings">
                 <i class="fas fa-save"></i> Enregistrer les paramètres
               </button>
@@ -4723,6 +5380,18 @@ const Utils = {
                   <input type="checkbox" id="barcodeEnabled" ${this.dataManager.data.settings.barcodeEnabled ? 'checked' : ''}>
                   Activation du scan de codes-barres
                 </label>
+              </div>
+              <div class="form-group">
+                <label class="form-label">
+                  <input type="checkbox" id="stockAlertEnabled" ${this.dataManager.data.settings.stockAlertEnabled !== false ? 'checked' : ''}>
+                  Alertes de stock automatiques
+                </label>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Seuil d'alerte par défaut</label>
+                <input type="number" id="defaultStockThreshold" class="form-control" 
+                       value="${APP_CONFIG.lowStockThreshold}" min="0">
+                <small class="text-muted">Seuil minimum de stock pour les nouveaux produits</small>
               </div>
               <div class="form-group">
                 <label class="form-label">Entête des tickets</label>
@@ -4785,9 +5454,15 @@ const Utils = {
         this.dataManager.data.settings.taxRate = parseFloat(document.getElementById('taxRate').value);
         this.dataManager.data.settings.autoBackup = document.getElementById('autoBackup').checked;
         this.dataManager.data.settings.barcodeEnabled = document.getElementById('barcodeEnabled').checked;
+        this.dataManager.data.settings.stockAlertEnabled = document.getElementById('stockAlertEnabled').checked;
+        this.dataManager.data.settings.autoSaveInvoice = document.getElementById('autoSaveInvoice').checked;
         this.dataManager.data.settings.receiptHeader = document.getElementById('receiptHeader').value;
         this.dataManager.data.settings.receiptFooter = document.getElementById('receiptFooter').value;
         this.dataManager.data.settings.currency = document.getElementById('currency').value;
+        
+        // Mettre à jour le seuil par défaut
+        const newThreshold = parseInt(document.getElementById('defaultStockThreshold').value) || APP_CONFIG.lowStockThreshold;
+        APP_CONFIG.lowStockThreshold = newThreshold;
         
         this.dataManager.save();
         this.updateUserInfo();
@@ -4799,7 +5474,8 @@ const Utils = {
         const user = this.dataManager.data.users.find(u => u.id === userId);
         return user ? user.name : 'Inconnu';
       }
-// === FILTRE ===
+
+      // === FILTRE ===
       renderFilter(container) {
         const currentYear = new Date().getFullYear();
         const years = Array.from({length: 10}, (_, i) => currentYear + i);
@@ -4865,7 +5541,6 @@ const Utils = {
         
         let results = '';
         
-        // Tableau de bord 12 mois
         const now = new Date();
         const currentYear = now.getFullYear();
         const selectedYear = year ? parseInt(year) : currentYear;
@@ -4908,7 +5583,6 @@ const Utils = {
           });
         }
         
-        // Calculer les totaux
         const totalRevenue = monthlyData.reduce((sum, data) => sum + data.revenue, 0);
         const totalCost = monthlyData.reduce((sum, data) => sum + data.cost, 0);
         const totalGrossMargin = monthlyData.reduce((sum, data) => sum + data.grossMargin, 0);
@@ -4962,7 +5636,6 @@ const Utils = {
         
         document.getElementById('filterResults').innerHTML = results;
         
-        // Créer le graphique
         this.createRevenueChart(monthlyData, selectedYear);
       }
 
@@ -4970,42 +5643,34 @@ const Utils = {
         const canvas = document.getElementById('revenueChart');
         const ctx = canvas.getContext('2d');
         
-        // Redimensionner le canvas
         canvas.width = canvas.parentElement.offsetWidth;
         canvas.height = 300;
         
-        // Données pour le graphique
         const months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
         const revenues = monthlyData.map(data => data.revenue);
         const costs = monthlyData.map(data => data.cost);
         const netMargins = monthlyData.map(data => data.netMargin);
         
-        // Trouver le maximum pour l'échelle
         const maxValue = Math.max(...revenues, ...costs, ...netMargins.map(m => Math.abs(m)));
         
-        // Effacer le canvas
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        // Configurations
         const padding = 40;
         const chartWidth = canvas.width - padding * 2;
         const chartHeight = canvas.height - padding * 2;
         
-        // Dessiner l'axe Y
         ctx.beginPath();
         ctx.moveTo(padding, padding);
         ctx.lineTo(padding, canvas.height - padding);
         ctx.strokeStyle = '#333';
         ctx.stroke();
         
-        // Dessiner l'axe X
         ctx.beginPath();
         ctx.moveTo(padding, canvas.height - padding);
         ctx.lineTo(canvas.width - padding, canvas.height - padding);
         ctx.strokeStyle = '#333';
         ctx.stroke();
         
-        // Échelle Y
         const ySteps = 5;
         const yStepValue = maxValue / ySteps;
         
@@ -5025,29 +5690,24 @@ const Utils = {
           ctx.stroke();
         }
         
-        // Largeur de barre
         const barWidth = (chartWidth / monthlyData.length) * 0.6;
         const barSpacing = (chartWidth / monthlyData.length) * 0.4;
         
-        // Dessiner les barres
         monthlyData.forEach((data, index) => {
           const x = padding + (index * (barWidth + barSpacing)) + barSpacing / 2;
           
-          // Barre du chiffre d'affaires (bleu)
           const revenueHeight = (data.revenue / maxValue) * chartHeight;
           const revenueY = canvas.height - padding - revenueHeight;
           
           ctx.fillStyle = '#3498db';
           ctx.fillRect(x, revenueY, barWidth, revenueHeight);
           
-          // Barre du coût (rouge)
           const costHeight = (data.cost / maxValue) * chartHeight;
           const costY = canvas.height - padding - costHeight;
           
           ctx.fillStyle = '#e74c3c';
           ctx.fillRect(x + barWidth, costY, barWidth / 2, costHeight);
           
-          // Ligne de marge nette (verte)
           const marginHeight = (Math.abs(data.netMargin) / maxValue) * chartHeight;
           const marginY = data.netMargin >= 0 ? 
             canvas.height - padding - marginHeight : 
@@ -5060,14 +5720,12 @@ const Utils = {
           ctx.lineWidth = 2;
           ctx.stroke();
           
-          // Nom du mois
           ctx.fillStyle = '#333';
           ctx.font = '12px Arial';
           ctx.textAlign = 'center';
           ctx.fillText(months[data.month - 1], x + barWidth, canvas.height - padding + 15);
         });
         
-        // Légende
         const legendItems = [
           { color: '#3498db', label: 'Chiffre d\'affaires' },
           { color: '#e74c3c', label: 'Coût' },
@@ -5088,310 +5746,300 @@ const Utils = {
           ctx.fillText(item.label, legendX + 20, legendY + 12);
         });
         
-        // Titre
         ctx.fillStyle = '#333';
         ctx.font = '16px Arial';
         ctx.textAlign = 'center';
         ctx.fillText(`Évolution du chiffre d'affaires ${year}`, canvas.width / 2, 20);
       }
-// === CAISSE ===
-renderCash(container) {
-  const today = new Date().toISOString().split('T')[0];
-  
-  container.innerHTML = `
-    <div class="card">
-      <div class="card-header">
-        <h3 class="card-title"><i class="fas fa-money-bill-wave"></i> Gestion de caisse</h3>
-      </div>
-      
-      <div class="alert alert-info">
-        <i class="fas fa-info-circle"></i> 
-        Cet onglet affiche toutes les ventes avec leur numéro de facture, ainsi que toutes les OPEX et charges, y compris les approvisionnements.
-      </div>
-      
-      <div class="grid grid-3">
-        <div class="card">
-          <div class="card-header">
-            <h4 class="card-title"><i class="fas fa-cash-register"></i> État de caisse</h4>
-          </div>
-          <div class="text-center">
-            <h2 style="font-size: 2.5rem; color: var(--success);">${Utils.formatCurrency(this.dataManager.data.cashRegister.closingBalance)}</h2>
-            <p class="text-muted">Solde restant</p>
-            <p class="text-muted">Solde initial: ${Utils.formatCurrency(this.dataManager.data.cashRegister.openingBalance)}</p>
-          </div>
-        </div>
-        
-        <div class="card">
-          <div class="card-header">
-            <h4 class="card-title"><i class="fas fa-shopping-cart"></i> Ventes aujourd'hui</h4>
-          </div>
-          <div class="text-center">
-            <h2 style="font-size: 2.5rem; color: var(--primary);">${Utils.formatCurrency(this.dataManager.data.currentSession.revenue || 0)}</h2>
-            <p class="text-muted">${this.dataManager.data.currentSession.salesCount || 0} transactions</p>
-          </div>
-        </div>
-        
-        <div class="card">
-          <div class="card-header">
-            <h4 class="card-title"><i class="fas fa-chart-pie"></i> Dépenses du mois</h4>
-          </div>
-          <div class="text-center">
-            <h2 style="font-size: 2.5rem; color: var(--danger);">${Utils.formatCurrency(this.getMonthlyExpenses())}</h2>
-            <p class="text-muted">OPEX & Charges</p>
-          </div>
-        </div>
-      </div>
-      
-      <div class="card mt-20">
-        <div class="card-header">
-          <h4 class="card-title"><i class="fas fa-list"></i> Transactions complètes</h4>
-        </div>
-        
-        <div class="date-filter">
-          <div class="form-group">
-            <label class="form-label">Date début</label>
-            <input type="date" id="cashStartDate" class="form-control" value="${today}">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Date fin</label>
-            <input type="date" id="cashEndDate" class="form-control" value="${today}">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Type</label>
-            <select id="cashFilterType" class="form-control">
-              <option value="">Toutes les transactions</option>
-              <option value="sale">Ventes</option>
-              <option value="expense">Dépenses</option>
-              <option value="opex">OPEX</option>
-              <option value="purchase">Approvisionnements</option>
-              <option value="deposit">Dépôts</option>
-              <option value="withdrawal">Retraits</option>
-            </select>
-          </div>
-          <div class="d-flex gap-10">
-            <button class="btn btn-primary" id="applyCashFilter">
-              <i class="fas fa-check"></i> Appliquer
-            </button>
-            <button class="btn btn-outline" id="resetCashFilter">
-              <i class="fas fa-redo"></i> Réinitialiser
-            </button>
-          </div>
-        </div>
-        
-        <div class="table-responsive mt-20">
-          <table class="table">
-            <thead>
-              <tr>
-                <th>Date/Heure</th>
-                <th>Type</th>
-                <th>Description / N° Facture</th>
-                <th>Client / Catégorie</th>
-                <th>Montant</th>
-                <th>Solde après</th>
-              </tr>
-            </thead>
-            <tbody id="cashTransactions">
-            </tbody>
-          </table>
-        </div>
-        
-        <div class="text-right mt-10">
-          <strong>Solde final: </strong>
-          <span id="cashFinalBalance" style="color: var(--success); font-size: 1.2rem;">${Utils.formatCurrency(this.dataManager.data.cashRegister.closingBalance)}</span>
-        </div>
-      </div>
-    </div>
-  `;
-  
-  this.setupCashEventListeners();
-  this.loadCashTransactions();
-}
 
-getMonthlyExpenses() {
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
-  
-  const monthlyOPEX = this.dataManager.data.opex.filter(op => 
-    op.date >= monthStart && op.date <= monthEnd
-  );
-  
-  const monthlyExpenses = this.dataManager.data.expenses.filter(exp => 
-    exp.date >= monthStart && exp.date <= monthEnd && exp.type !== 'opex'
-  );
-  
-  const monthlyPurchases = this.dataManager.data.purchases.filter(p => {
-    const purchaseDate = new Date(p.date).toISOString().split('T')[0];
-    return purchaseDate >= monthStart && purchaseDate <= monthEnd;
-  });
-  
-  const totalOPEX = monthlyOPEX.reduce((sum, op) => sum + op.amount, 0);
-  const totalExpenses = monthlyExpenses.reduce((sum, exp) => sum + exp.amount, 0);
-  const totalPurchases = monthlyPurchases.reduce((sum, p) => sum + p.total, 0);
-  
-  return totalOPEX + totalExpenses + totalPurchases;
-}
+      // === CAISSE ===
+      renderCash(container) {
+        const today = new Date().toISOString().split('T')[0];
+        
+        container.innerHTML = `
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title"><i class="fas fa-money-bill-wave"></i> Gestion de caisse</h3>
+            </div>
+            
+            <div class="alert alert-info">
+              <i class="fas fa-info-circle"></i> 
+              Cet onglet affiche toutes les ventes avec leur numéro de facture, ainsi que toutes les OPEX et charges, y compris les approvisionnements.
+            </div>
+            
+            <div class="grid grid-3">
+              <div class="card">
+                <div class="card-header">
+                  <h4 class="card-title"><i class="fas fa-cash-register"></i> État de caisse</h4>
+                </div>
+                <div class="text-center">
+                  <h2 style="font-size: 2.5rem; color: var(--success);">${Utils.formatCurrency(this.dataManager.data.cashRegister.closingBalance)}</h2>
+                  <p class="text-muted">Solde restant</p>
+                  <p class="text-muted">Solde initial: ${Utils.formatCurrency(this.dataManager.data.cashRegister.openingBalance)}</p>
+                </div>
+              </div>
+              
+              <div class="card">
+                <div class="card-header">
+                  <h4 class="card-title"><i class="fas fa-shopping-cart"></i> Ventes aujourd'hui</h4>
+                </div>
+                <div class="text-center">
+                  <h2 style="font-size: 2.5rem; color: var(--primary);">${Utils.formatCurrency(this.dataManager.data.currentSession.revenue || 0)}</h2>
+                  <p class="text-muted">${this.dataManager.data.currentSession.salesCount || 0} transactions</p>
+                </div>
+              </div>
+              
+              <div class="card">
+                <div class="card-header">
+                  <h4 class="card-title"><i class="fas fa-chart-pie"></i> Dépenses du mois</h4>
+                </div>
+                <div class="text-center">
+                  <h2 style="font-size: 2.5rem; color: var(--danger);">${Utils.formatCurrency(this.getMonthlyExpenses())}</h2>
+                  <p class="text-muted">OPEX & Charges</p>
+                </div>
+              </div>
+            </div>
+            
+            <div class="card mt-20">
+              <div class="card-header">
+                <h4 class="card-title"><i class="fas fa-list"></i> Transactions complètes</h4>
+              </div>
+              
+              <div class="date-filter">
+                <div class="form-group">
+                  <label class="form-label">Date début</label>
+                  <input type="date" id="cashStartDate" class="form-control" value="${today}">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Date fin</label>
+                  <input type="date" id="cashEndDate" class="form-control" value="${today}">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Type</label>
+                  <select id="cashFilterType" class="form-control">
+                    <option value="">Toutes les transactions</option>
+                    <option value="sale">Ventes</option>
+                    <option value="expense">Dépenses</option>
+                    <option value="opex">OPEX</option>
+                    <option value="purchase">Approvisionnements</option>
+                    <option value="deposit">Dépôts</option>
+                    <option value="withdrawal">Retraits</option>
+                  </select>
+                </div>
+                <div class="d-flex gap-10">
+                  <button class="btn btn-primary" id="applyCashFilter">
+                    <i class="fas fa-check"></i> Appliquer
+                  </button>
+                  <button class="btn btn-outline" id="resetCashFilter">
+                    <i class="fas fa-redo"></i> Réinitialiser
+                  </button>
+                </div>
+              </div>
+              
+              <div class="table-responsive mt-20">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th>Date/Heure</th>
+                      <th>Type</th>
+                      <th>Description / N° Facture</th>
+                      <th>Client / Catégorie</th>
+                      <th>Montant</th>
+                      <th>Solde après</th>
+                    </tr>
+                  </thead>
+                  <tbody id="cashTransactions">
+                  </tbody>
+                </table>
+              </div>
+              
+              <div class="text-right mt-10">
+                <strong>Solde final: </strong>
+                <span id="cashFinalBalance" style="color: var(--success); font-size: 1.2rem;">${Utils.formatCurrency(this.dataManager.data.cashRegister.closingBalance)}</span>
+              </div>
+            </div>
+          </div>
+        `;
+        
+        this.setupCashEventListeners();
+        this.loadCashTransactions();
+      }
 
-setupCashEventListeners() {
-  document.getElementById('applyCashFilter').addEventListener('click', () => {
-    this.loadCashTransactions();
-  });
+      getMonthlyExpenses() {
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+        
+        const monthlyOPEX = this.dataManager.data.opex.filter(op => 
+          op.date >= monthStart && op.date <= monthEnd
+        );
+        
+        const monthlyExpenses = this.dataManager.data.expenses.filter(exp => 
+          exp.date >= monthStart && exp.date <= monthEnd
+        );
+        
+        const monthlyPurchases = this.dataManager.data.purchases.filter(p => {
+          const purchaseDate = new Date(p.date).toISOString().split('T')[0];
+          return purchaseDate >= monthStart && purchaseDate <= monthEnd;
+        });
+        
+        const totalOPEX = monthlyOPEX.reduce((sum, op) => sum + op.amount, 0);
+        const totalExpenses = monthlyExpenses.reduce((sum, exp) => sum + exp.amount, 0);
+        const totalPurchases = monthlyPurchases.reduce((sum, p) => sum + p.total, 0);
+        
+        return totalOPEX + totalExpenses + totalPurchases;
+      }
 
-  document.getElementById('resetCashFilter').addEventListener('click', () => {
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById('cashStartDate').value = today;
-    document.getElementById('cashEndDate').value = today;
-    document.getElementById('cashFilterType').value = '';
-    this.loadCashTransactions();
-  });
-}
+      setupCashEventListeners() {
+        document.getElementById('applyCashFilter').addEventListener('click', () => {
+          this.loadCashTransactions();
+        });
 
-loadCashTransactions() {
-  const tbody = document.getElementById('cashTransactions');
-  const startDate = document.getElementById('cashStartDate').value;
-  const endDate = document.getElementById('cashEndDate').value;
-  const filterType = document.getElementById('cashFilterType').value;
-  
-  // Récupérer toutes les transactions SANS DOUBLONS
-  let allTransactions = [];
-  
-  // Ajouter les ventes
-  this.dataManager.data.sales.forEach(sale => {
-    allTransactions.push({
-      id: sale.id,
-      date: sale.date,
-      type: 'sale',
-      description: `Vente ${sale.invoiceNumber || sale.id}`,
-      detail: sale.customerName,
-      amount: sale.total,
-      balance: 0
-    });
-  });
-  
-  // Ajouter les OPEX uniquement depuis data.opex
-  this.dataManager.data.opex.forEach(opex => {
-    allTransactions.push({
-      id: opex.id,
-      date: opex.date,
-      type: 'opex',
-      description: `OPEX: ${opex.description}`,
-      detail: opex.category,
-      amount: -opex.amount,
-      balance: 0
-    });
-  });
-  
-  // Ajouter les autres dépenses (sauf OPEX et purchases)
-  this.dataManager.data.expenses.forEach(exp => {
-    // Exclure les OPEX (déjà traités) et les purchases (traités séparément)
-    if (exp.type !== 'opex' && exp.type !== 'purchase') {
-      allTransactions.push({
-        id: exp.id,
-        date: exp.date,
-        type: 'expense',
-        description: `Dépense: ${exp.description}`,
-        detail: exp.category || 'Général',
-        amount: -exp.amount,
-        balance: 0
-      });
-    }
-  });
-  
-  // Ajouter les approvisionnements uniquement depuis purchases
-  this.dataManager.data.purchases.forEach(purchase => {
-    allTransactions.push({
-      id: purchase.id,
-      date: purchase.date,
-      type: 'purchase',
-      description: `Approvisionnement - ${purchase.supplierName}`,
-      detail: 'Achat marchandises',
-      amount: -purchase.total,
-      balance: 0
-    });
-  });
-  
-  // Ajouter les opérations de caisse
-  this.dataManager.data.cashOperations.forEach(op => {
-    allTransactions.push({
-      id: op.id,
-      date: op.date,
-      type: op.type === 'entree' ? 'deposit' : 'withdrawal',
-      description: op.description,
-      detail: 'Opération caisse',
-      amount: op.type === 'entree' ? op.amount : -op.amount,
-      balance: op.newBalance
-    });
-  });
-  
-  // Filtrer par date
-  if (startDate && endDate) {
-    allTransactions = allTransactions.filter(t => {
-      const tDate = t.date.split('T')[0];
-      return tDate >= startDate && tDate <= endDate;
-    });
-  }
-  
-  // Filtrer par type
-  if (filterType) {
-    if (filterType === 'sale') {
-      allTransactions = allTransactions.filter(t => t.type === 'sale');
-    } else if (filterType === 'expense' || filterType === 'opex' || filterType === 'purchase') {
-      allTransactions = allTransactions.filter(t => t.type === filterType);
-    } else if (filterType === 'deposit') {
-      allTransactions = allTransactions.filter(t => t.type === 'deposit');
-    } else if (filterType === 'withdrawal') {
-      allTransactions = allTransactions.filter(t => t.type === 'withdrawal');
-    }
-  }
-  
-  // Trier par date (plus récent en premier)
-  allTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
-  
-  if (allTransactions.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6" class="text-center">Aucune transaction trouvée</td></tr>';
-    return;
-  }
-  
-  let html = '';
-  let runningBalance = this.dataManager.data.cashRegister.closingBalance;
-  
-  allTransactions.forEach(transaction => {
-    // Ajuster le solde pour les transactions passées
-    if (new Date(transaction.date) < new Date()) {
-      runningBalance -= transaction.amount;
-    }
-    
-    const typeBadge = transaction.type === 'sale' ? 'badge-success' :
-                     transaction.type === 'opex' ? 'badge-danger' :
-                     transaction.type === 'expense' ? 'badge-warning' :
-                     transaction.type === 'purchase' ? 'badge-info' :
-                     transaction.type === 'deposit' ? 'badge-primary' : 'badge-secondary';
-    
-    const typeLabel = transaction.type === 'sale' ? 'Vente' :
-                     transaction.type === 'opex' ? 'OPEX' :
-                     transaction.type === 'expense' ? 'Dépense' :
-                     transaction.type === 'purchase' ? 'Approvisionnement' :
-                     transaction.type === 'deposit' ? 'Dépôt' : 'Retrait';
-    
-    html += `
-      <tr>
-        <td>${Utils.formatDateTime(transaction.date)}</td>
-        <td>
-          <span class="badge ${typeBadge}">${typeLabel}</span>
-        </td>
-        <td>${transaction.description}</td>
-        <td>${transaction.detail}</td>
-        <td class="${transaction.amount >= 0 ? 'text-success' : 'text-danger'}">
-          ${transaction.amount >= 0 ? '+' : ''}${Utils.formatCurrency(transaction.amount)}
-        </td>
-        <td>${Utils.formatCurrency(transaction.balance || runningBalance)}</td>
-      </tr>
-    `;
-  });
-  
-  tbody.innerHTML = html;
-}
-// === CONFIGURATION CAISSE ===
+        document.getElementById('resetCashFilter').addEventListener('click', () => {
+          const today = new Date().toISOString().split('T')[0];
+          document.getElementById('cashStartDate').value = today;
+          document.getElementById('cashEndDate').value = today;
+          document.getElementById('cashFilterType').value = '';
+          this.loadCashTransactions();
+        });
+      }
+
+      loadCashTransactions() {
+        const tbody = document.getElementById('cashTransactions');
+        const startDate = document.getElementById('cashStartDate').value;
+        const endDate = document.getElementById('cashEndDate').value;
+        const filterType = document.getElementById('cashFilterType').value;
+        
+        let allTransactions = [];
+        
+        this.dataManager.data.sales.forEach(sale => {
+          allTransactions.push({
+            id: sale.id,
+            date: sale.date,
+            type: 'sale',
+            description: `Vente ${sale.invoiceNumber || sale.id}`,
+            detail: sale.customerName,
+            amount: sale.total,
+            balance: 0
+          });
+        });
+        
+        this.dataManager.data.opex.forEach(opex => {
+          allTransactions.push({
+            id: opex.id,
+            date: opex.date,
+            type: 'opex',
+            description: `OPEX: ${opex.description}`,
+            detail: opex.category,
+            amount: -opex.amount,
+            balance: 0
+          });
+        });
+        
+        this.dataManager.data.expenses.forEach(exp => {
+          if (exp.type !== 'opex') {
+            allTransactions.push({
+              id: exp.id,
+              date: exp.date,
+              type: 'expense',
+              description: `Dépense: ${exp.description}`,
+              detail: exp.category || 'Général',
+              amount: -exp.amount,
+              balance: 0
+            });
+          }
+        });
+        
+        this.dataManager.data.purchases.forEach(purchase => {
+          allTransactions.push({
+            id: purchase.id,
+            date: purchase.date,
+            type: 'purchase',
+            description: `Approvisionnement - ${purchase.supplierName}`,
+            detail: 'Achat marchandises',
+            amount: -purchase.total,
+            balance: 0
+          });
+        });
+        
+        this.dataManager.data.cashOperations.forEach(op => {
+          allTransactions.push({
+            id: op.id,
+            date: op.date,
+            type: op.type === 'entree' ? 'deposit' : 'withdrawal',
+            description: op.description,
+            detail: 'Opération caisse',
+            amount: op.type === 'entree' ? op.amount : -op.amount,
+            balance: op.newBalance
+          });
+        });
+        
+        if (startDate && endDate) {
+          allTransactions = allTransactions.filter(t => {
+            const tDate = t.date.split('T')[0];
+            return tDate >= startDate && tDate <= endDate;
+          });
+        }
+        
+        if (filterType) {
+          if (filterType === 'sale') {
+            allTransactions = allTransactions.filter(t => t.type === 'sale');
+          } else if (filterType === 'expense' || filterType === 'opex' || filterType === 'purchase') {
+            allTransactions = allTransactions.filter(t => t.type === filterType);
+          } else if (filterType === 'deposit') {
+            allTransactions = allTransactions.filter(t => t.type === 'deposit');
+          } else if (filterType === 'withdrawal') {
+            allTransactions = allTransactions.filter(t => t.type === 'withdrawal');
+          }
+        }
+        
+        allTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+        
+        if (allTransactions.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" class="text-center">Aucune transaction trouvée</td></tr>';
+          return;
+        }
+        
+        let html = '';
+        let runningBalance = this.dataManager.data.cashRegister.closingBalance;
+        
+        allTransactions.forEach(transaction => {
+          if (new Date(transaction.date) < new Date()) {
+            runningBalance -= transaction.amount;
+          }
+          
+          const typeBadge = transaction.type === 'sale' ? 'badge-success' :
+                           transaction.type === 'opex' ? 'badge-danger' :
+                           transaction.type === 'expense' ? 'badge-warning' :
+                           transaction.type === 'purchase' ? 'badge-info' :
+                           transaction.type === 'deposit' ? 'badge-primary' : 'badge-secondary';
+          
+          const typeLabel = transaction.type === 'sale' ? 'Vente' :
+                           transaction.type === 'opex' ? 'OPEX' :
+                           transaction.type === 'expense' ? 'Dépense' :
+                           transaction.type === 'purchase' ? 'Approvisionnement' :
+                           transaction.type === 'deposit' ? 'Dépôt' : 'Retrait';
+          
+          html += `
+            <tr>
+              <td>${Utils.formatDateTime(transaction.date)}</td>
+              <td>
+                <span class="badge ${typeBadge}">${typeLabel}</span>
+              </td>
+              <td>${transaction.description}</td>
+              <td>${transaction.detail}</td>
+              <td class="${transaction.amount >= 0 ? 'text-success' : 'text-danger'}">
+                ${transaction.amount >= 0 ? '+' : ''}${Utils.formatCurrency(transaction.amount)}
+              </td>
+              <td>${Utils.formatCurrency(transaction.balance || runningBalance)}</td>
+            </tr>
+          `;
+        });
+        
+        tbody.innerHTML = html;
+      }
+
+      // === CONFIGURATION CAISSE ===
       renderCashConfig(container) {
         container.innerHTML = `
           <div class="card">
@@ -5464,17 +6112,14 @@ loadCashTransactions() {
       }
 
       setupCashConfigEventListeners(container) {
-        // Sauvegarder la configuration
         container.querySelector('#saveCashConfig').addEventListener('click', () => {
           this.saveCashConfig();
         });
         
-        // Réinitialiser au solde initial
         container.querySelector('#resetCashToOpening').addEventListener('click', () => {
           this.resetCashToOpening();
         });
         
-        // Fermer la caisse
         container.querySelector('#closeCashRegister').addEventListener('click', () => {
           this.closeCashRegister();
         });
@@ -5497,18 +6142,15 @@ loadCashTransactions() {
         const oldOpening = this.dataManager.data.cashRegister.openingBalance;
         const difference = newOpening - oldOpening;
         
-        // Demander confirmation pour les changements importants
         if (Math.abs(difference) > 100000) {
           if (!confirm(`Vous êtes sur le point de modifier le solde initial de ${Utils.formatCurrency(oldOpening)} à ${Utils.formatCurrency(newOpening)}.\n\nDifférence: ${Utils.formatCurrency(difference)}\n\nÊtes-vous sûr de vouloir continuer ?`)) {
             return;
           }
         }
         
-        // Mettre à jour les soldes
         this.dataManager.data.cashRegister.openingBalance = newOpening;
         this.dataManager.data.cashRegister.closingBalance += difference;
         
-        // Enregistrer l'opération
         const operation = {
           id: Utils.generateId('ADJ_'),
           date: new Date().toISOString(),
@@ -5522,7 +6164,6 @@ loadCashTransactions() {
         
         this.dataManager.data.cashOperations.push(operation);
         
-        // Ajouter aux transactions
         this.dataManager.data.cashRegister.transactions.push({
           id: operation.id,
           date: operation.date,
@@ -5535,12 +6176,10 @@ loadCashTransactions() {
         this.dataManager.save();
         this.updateStats();
         
-        // Réinitialiser le champ de raison
         document.getElementById('cashChangeReason').value = '';
         
         this.dataManager.showNotification(`Solde initial ajusté de ${Utils.formatCurrency(difference)}`, 'success');
         
-        // Recharger la page pour afficher les nouvelles valeurs
         this.loadPage('cashconfig');
       }
 
@@ -5561,7 +6200,6 @@ loadCashTransactions() {
         
         this.dataManager.data.cashRegister.closingBalance = openingBalance;
         
-        // Enregistrer l'opération
         const operation = {
           id: Utils.generateId('RESET_'),
           date: new Date().toISOString(),
@@ -5606,10 +6244,8 @@ loadCashTransactions() {
         const systemBalance = this.dataManager.data.cashRegister.closingBalance;
         const difference = realBalanceNum - systemBalance;
         
-        // Enregistrer la fermeture
         this.dataManager.data.cashRegister.lastClosed = new Date().toISOString();
         
-        // Créer un rapport de fermeture
         const closingReport = {
           id: Utils.generateId('CLOSE_'),
           date: new Date().toISOString(),
@@ -5621,13 +6257,11 @@ loadCashTransactions() {
           closedBy: this.currentUser.id
         };
         
-        // Ajouter à l'historique
         if (!this.dataManager.data.cashRegister.closingHistory) {
           this.dataManager.data.cashRegister.closingHistory = [];
         }
         this.dataManager.data.cashRegister.closingHistory.push(closingReport);
         
-        // Réinitialiser pour le jour suivant (optionnel)
         if (confirm('Voulez-vous réinitialiser la caisse pour le jour suivant ?')) {
           this.dataManager.data.cashRegister.openingBalance = realBalanceNum;
           this.dataManager.data.cashRegister.closingBalance = realBalanceNum;
@@ -5636,7 +6270,6 @@ loadCashTransactions() {
         
         this.dataManager.save();
         
-        // Afficher le rapport
         const modal = document.getElementById('genericModal');
         modal.querySelector('#modalTitle').textContent = 'Rapport de fermeture de caisse';
         
@@ -5672,7 +6305,6 @@ loadCashTransactions() {
           this.loadPage('cashconfig');
         };
       }
-
 
       closeModal() {
         document.getElementById('genericModal').classList.remove('active');
