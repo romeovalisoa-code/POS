@@ -477,8 +477,8 @@
     .modal-content {
       background: white;
       border-radius: 12px;
-      width: 90%;
-      max-width: 800px;
+      width: 100%;
+      max-width: 1000px;
       max-height: 90vh;
       overflow-y: auto;
     }
@@ -1472,7 +1472,7 @@
           version: APP_CONFIG.version,
           company: {
             name: 'SHOP MIHARISOA',
-            address: 'Lot III À 68 E SAHAMASY  AMBALAVAO ',
+            address: 'Lot IG 33C ANDREFAMANDA ',
             phone: '+261 34 04 702 00 /+261 34 20 042 12',
             email: 'trandriatahiry@gmail.com',
             taxId: 'NIF 4012713844',
@@ -2258,7 +2258,7 @@
                       <th>Stock actuel</th>
                       <th>Seuil minimum</th>
                       <th>Valeur unitaire</th>
-                      <th>Valeur totale</th>
+                      
                       <th>Dernière mise à jour</th>
                     </tr>
                   </thead>
@@ -2500,7 +2500,6 @@
                     <th>Référence</th>
                     <th>Produits vérifiés</th>
                     <th>Écarts</th>
-                    <th>Valeur totale</th>
                     <th>Responsable</th>
                     <th>Détails</th>
                   </tr>
@@ -2642,7 +2641,6 @@
               <td>${record.reference}</td>
               <td>${record.checkedProducts}</td>
               <td>${record.totalDifferences}</td>
-              <td>${Utils.formatCurrency(record.totalValue)}</td>
               <td>${this.getUserName(record.performedBy)}</td>
               <td>
                 <button class="btn btn-sm btn-outline" onclick="app.showInventoryDetails('${record.id}')">
@@ -2670,7 +2668,7 @@
             <strong>Responsable:</strong> ${this.getUserName(record.performedBy)}<br>
             <strong>Produits vérifiés:</strong> ${record.checkedProducts}<br>
             <strong>Écarts totaux:</strong> ${record.totalDifferences}<br>
-            <strong>Valeur totale:</strong> ${Utils.formatCurrency(record.totalValue)}
+            
           </div>
           <h4>Détails par produit</h4>
           <div class="table-responsive">
@@ -2682,7 +2680,6 @@
                   <th>Stock physique</th>
                   <th>Écart</th>
                   <th>Explication</th>
-                  <th>Valeur</th>
                 </tr>
               </thead>
               <tbody>
@@ -2700,7 +2697,7 @@
                 </span>
               </td>
               <td>${item.explanation || '-'}</td>
-              <td>${Utils.formatCurrency(item.totalValue)}</td>
+              
             </tr>
           `;
         });
@@ -2713,7 +2710,7 @@
         
         modal.querySelector('#modalBody').innerHTML = detailsHtml;
         modal.querySelector('#modalFooter').innerHTML = `
-          <button class="btn btn-primary" id="modalConfirm">Fermer</button>
+          
         `;
         
         modal.classList.add('active');
@@ -3150,7 +3147,7 @@
               </button>
               <div class="alert alert-warning" style="margin-top: 10px;">
                 <i class="fas fa-exclamation-triangle"></i> 
-                Chaque dépense OPEX est enregistrée UNE SEULE FOIS dans la caisse<br>
+                Chaque dépense OPEX est enregistrée  dans la caisse<br>
                 L'heure est enregistrée avec l'heure actuelle
               </div>
             </div>
@@ -3366,7 +3363,7 @@
         this.updateOPEXStats();
         this.updateStats();
         
-        this.dataManager.showNotification('Dépense OPEX enregistrée UNE SEULE FOIS avec succès', 'success');
+        this.dataManager.showNotification('Dépense OPEX enregistrée  avec succès', 'success');
       }
 
       loadOPEXHistory() {
@@ -3506,7 +3503,7 @@
                   <h3 class="card-title"><i class="fas fa-shopping-cart"></i> Achat de marchandises</h3>
                   <div class="alert alert-warning" style="margin-top: 10px;">
                     <i class="fas fa-exclamation-triangle"></i> 
-                    Chaque approvisionnement est enregistré UNE SEULE FOIS dans la caisse
+                    Chaque approvisionnement est enregistré  dans la caisse
                   </div>
                 </div>
                 
@@ -3547,7 +3544,7 @@
                 
                 <div class="alert alert-info">
                   <i class="fas fa-info-circle"></i> 
-                  Le montant total sera déduit de la caisse UNE SEULE FOIS lorsque vous cliquerez sur "Approvisionner"
+                  Le montant total sera déduit de la caisse  lorsque vous cliquerez sur "Approvisionner"
                 </div>
               </div>
             </div>
@@ -3803,7 +3800,7 @@ showApprovisionnementDetails(purchaseId) {
   
   modal.querySelector('#modalBody').innerHTML = detailsHtml;
   modal.querySelector('#modalFooter').innerHTML = `
-    <button class="btn btn-primary" id="modalConfirm">Fermer</button>
+    
   `;
   
   modal.classList.add('active');
@@ -4045,7 +4042,7 @@ showApprovisionnementDetails(purchaseId) {
   // AJOUTEZ CETTE LIGNE POUR RECHARGER L'HISTORIQUE
   this.loadApprovisionnementHistory();
   
-  this.dataManager.showNotification('Approvisionnement enregistré UNE SEULE FOIS avec succès', 'success');
+  this.dataManager.showNotification('Approvisionnement enregistré  avec succès', 'success');
   this.updateStats();
   this.loadAllProducts();
 }
@@ -5853,6 +5850,11 @@ showApprovisionnementDetails(purchaseId) {
                 </table>
               </div>
               
+              <!-- SOUS-TOTAUX AJOUTÉS ICI -->
+              <div class="mt-20" id="cashSubtotals">
+                <!-- Les sous-totaux seront ajoutés dynamiquement ici -->
+              </div>
+              
               <div class="text-right mt-10">
                 <strong>Solde final: </strong>
                 <span id="cashFinalBalance" style="color: var(--success); font-size: 1.2rem;">${Utils.formatCurrency(this.dataManager.data.cashRegister.closingBalance)}</span>
@@ -5906,12 +5908,14 @@ showApprovisionnementDetails(purchaseId) {
 
       loadCashTransactions() {
         const tbody = document.getElementById('cashTransactions');
+        const subtotalsContainer = document.getElementById('cashSubtotals');
         const startDate = document.getElementById('cashStartDate').value;
         const endDate = document.getElementById('cashEndDate').value;
         const filterType = document.getElementById('cashFilterType').value;
         
         let allTransactions = [];
         
+        // Ajouter les ventes
         this.dataManager.data.sales.forEach(sale => {
           allTransactions.push({
             id: sale.id,
@@ -5924,6 +5928,7 @@ showApprovisionnementDetails(purchaseId) {
           });
         });
         
+        // Ajouter les OPEX
         this.dataManager.data.opex.forEach(opex => {
           allTransactions.push({
             id: opex.id,
@@ -5936,6 +5941,7 @@ showApprovisionnementDetails(purchaseId) {
           });
         });
         
+        // Ajouter les dépenses (sauf OPEX déjà comptées)
         this.dataManager.data.expenses.forEach(exp => {
           if (exp.type !== 'opex') {
             allTransactions.push({
@@ -5950,6 +5956,7 @@ showApprovisionnementDetails(purchaseId) {
           }
         });
         
+        // Ajouter les approvisionnements
         this.dataManager.data.purchases.forEach(purchase => {
           allTransactions.push({
             id: purchase.id,
@@ -5962,6 +5969,7 @@ showApprovisionnementDetails(purchaseId) {
           });
         });
         
+        // Ajouter les opérations de caisse
         this.dataManager.data.cashOperations.forEach(op => {
           allTransactions.push({
             id: op.id,
@@ -5974,6 +5982,7 @@ showApprovisionnementDetails(purchaseId) {
           });
         });
         
+        // Filtrer par date
         if (startDate && endDate) {
           allTransactions = allTransactions.filter(t => {
             const tDate = t.date.split('T')[0];
@@ -5981,31 +5990,50 @@ showApprovisionnementDetails(purchaseId) {
           });
         }
         
+        // Filtrer par type si spécifié
+        let filteredTransactions = allTransactions;
         if (filterType) {
           if (filterType === 'sale') {
-            allTransactions = allTransactions.filter(t => t.type === 'sale');
+            filteredTransactions = allTransactions.filter(t => t.type === 'sale');
           } else if (filterType === 'expense' || filterType === 'opex' || filterType === 'purchase') {
-            allTransactions = allTransactions.filter(t => t.type === filterType);
+            filteredTransactions = allTransactions.filter(t => t.type === filterType);
           } else if (filterType === 'deposit') {
-            allTransactions = allTransactions.filter(t => t.type === 'deposit');
+            filteredTransactions = allTransactions.filter(t => t.type === 'deposit');
           } else if (filterType === 'withdrawal') {
-            allTransactions = allTransactions.filter(t => t.type === 'withdrawal');
+            filteredTransactions = allTransactions.filter(t => t.type === 'withdrawal');
           }
         }
         
-        allTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+        // Trier par date décroissante
+        filteredTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
         
-        if (allTransactions.length === 0) {
+        if (filteredTransactions.length === 0) {
           tbody.innerHTML = '<tr><td colspan="6" class="text-center">Aucune transaction trouvée</td></tr>';
+          subtotalsContainer.innerHTML = '';
           return;
         }
         
         let html = '';
         let runningBalance = this.dataManager.data.cashRegister.closingBalance;
         
-        allTransactions.forEach(transaction => {
+        // Calculer les sous-totaux par type
+        const subtotals = {
+          sale: 0,
+          opex: 0,
+          expense: 0,
+          purchase: 0,
+          deposit: 0,
+          withdrawal: 0
+        };
+        
+        filteredTransactions.forEach(transaction => {
           if (new Date(transaction.date) < new Date()) {
             runningBalance -= transaction.amount;
+          }
+          
+          // Ajouter au sous-total correspondant
+          if (subtotals.hasOwnProperty(transaction.type)) {
+            subtotals[transaction.type] += transaction.amount;
           }
           
           const typeBadge = transaction.type === 'sale' ? 'badge-success' :
@@ -6037,6 +6065,119 @@ showApprovisionnementDetails(purchaseId) {
         });
         
         tbody.innerHTML = html;
+        
+        // Afficher les sous-totaux
+        let subtotalsHtml = '<div class="grid grid-3 gap-20 mt-20">';
+        
+        // Ventes
+        if (subtotals.sale !== 0 || filterType === 'sale' || filterType === '') {
+          subtotalsHtml += `
+            <div class="card">
+              <div class="card-header">
+                <h5 class="card-title"><i class="fas fa-shopping-cart text-success"></i> Ventes</h5>
+              </div>
+              <div class="text-center">
+                <h3 style="color: var(--success);">${Utils.formatCurrency(subtotals.sale)}</h3>
+                <p class="text-muted">Total des ventes</p>
+              </div>
+            </div>
+          `;
+        }
+        
+        // OPEX
+        if (subtotals.opex !== 0 || filterType === 'opex' || filterType === '') {
+          subtotalsHtml += `
+            <div class="card">
+              <div class="card-header">
+                <h5 class="card-title"><i class="fas fa-chart-pie text-danger"></i> OPEX</h5>
+              </div>
+              <div class="text-center">
+                <h3 style="color: var(--danger);">${Utils.formatCurrency(Math.abs(subtotals.opex))}</h3>
+                <p class="text-muted">Total des dépenses OPEX</p>
+              </div>
+            </div>
+          `;
+        }
+        
+        // Dépenses
+        if (subtotals.expense !== 0 || filterType === 'expense' || filterType === '') {
+          subtotalsHtml += `
+            <div class="card">
+              <div class="card-header">
+                <h5 class="card-title"><i class="fas fa-money-bill-wave text-warning"></i> Dépenses</h5>
+              </div>
+              <div class="text-center">
+                <h3 style="color: var(--warning);">${Utils.formatCurrency(Math.abs(subtotals.expense))}</h3>
+                <p class="text-muted">Total des dépenses générales</p>
+              </div>
+            </div>
+          `;
+        }
+        
+        // Approvisionnements
+        if (subtotals.purchase !== 0 || filterType === 'purchase' || filterType === '') {
+          subtotalsHtml += `
+            <div class="card">
+              <div class="card-header">
+                <h5 class="card-title"><i class="fas fa-shopping-cart text-info"></i> Approvisionnements</h5>
+              </div>
+              <div class="text-center">
+                <h3 style="color: var(--info);">${Utils.formatCurrency(Math.abs(subtotals.purchase))}</h3>
+                <p class="text-muted">Total des achats</p>
+              </div>
+            </div>
+          `;
+        }
+        
+        // Dépôts
+        if (subtotals.deposit !== 0 || filterType === 'deposit' || filterType === '') {
+          subtotalsHtml += `
+            <div class="card">
+              <div class="card-header">
+                <h5 class="card-title"><i class="fas fa-plus-circle text-primary"></i> Dépôts</h5>
+              </div>
+              <div class="text-center">
+                <h3 style="color: var(--primary);">${Utils.formatCurrency(subtotals.deposit)}</h3>
+                <p class="text-muted">Total des dépôts</p>
+              </div>
+            </div>
+          `;
+        }
+        
+        // Retraits
+        if (subtotals.withdrawal !== 0 || filterType === 'withdrawal' || filterType === '') {
+          subtotalsHtml += `
+            <div class="card">
+              <div class="card-header">
+                <h5 class="card-title"><i class="fas fa-minus-circle text-secondary"></i> Retraits</h5>
+              </div>
+              <div class="text-center">
+                <h3 style="color: var(--text-light);">${Utils.formatCurrency(Math.abs(subtotals.withdrawal))}</h3>
+                <p class="text-muted">Total des retraits</p>
+              </div>
+            </div>
+          `;
+        }
+        
+        subtotalsHtml += '</div>';
+        
+        // Calculer le total net
+        const totalNet = subtotals.sale + subtotals.opex + subtotals.expense + 
+                        subtotals.purchase + subtotals.deposit + subtotals.withdrawal;
+        
+        subtotalsHtml += `
+          <div class="card mt-20">
+            <div class="card-header">
+              <h5 class="card-title"><i class="fas fa-calculator"></i> Récapitulatif</h5>
+            </div>
+            <div class="text-center">
+              <h3 style="color: ${totalNet >= 0 ? 'var(--success)' : 'var(--danger)'};">${Utils.formatCurrency(totalNet)}</h3>
+              <p class="text-muted">Total net ${totalNet >= 0 ? '(Entrées nettes)' : '(Sorties nettes)'}</p>
+            </div>
+          </div>
+        `;
+        
+        subtotalsContainer.innerHTML = subtotalsHtml;
       }
 
       // === CONFIGURATION CAISSE ===
@@ -6298,7 +6439,7 @@ showApprovisionnementDetails(purchaseId) {
         modal.querySelector('#modalConfirm').onclick = () => {
           const comments = document.getElementById('closingComments').value;
           closingReport.comments = comments;
-          this.dataManager.save();
+          this.dataManager.save(); 
           
           this.dataManager.showNotification('Caisse fermée avec succès', 'success');
           this.closeModal();
